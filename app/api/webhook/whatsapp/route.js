@@ -7,6 +7,7 @@ export const maxDuration = 30;
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'ChatBiz_Secret_Secure_Token_2026';
 
+
 // ----------------------------------------------------------------------------
 // META WEBHOOK HANDSHAKE VERIFICATION ROUTE (GET /api/webhook)
 // ----------------------------------------------------------------------------
