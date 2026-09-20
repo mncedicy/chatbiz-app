@@ -66,6 +66,7 @@ export async function POST(request) {
         // Once validated, safe to convert the verified string buffer into JSON
         const body = JSON.parse(rawBody);
 
+
         if (body.object === 'whatsapp_business_account') {
             const changes = body.entry?.[0]?.changes?.[0]?.value;
 
