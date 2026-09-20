@@ -4,7 +4,10 @@ import crypto from 'crypto';
 
 export const maxDuration = 30;
 
-const VERIFY_TOKEN = "ChatBiz_Secret_Secure_Token_2026";
+// ============================================================================
+// HARDCODED TESTING TOKENS (Updated with a trailing 1 to flush Meta's cache)
+// ============================================================================
+const VERIFY_TOKEN = "ChatBiz_Secret_Secure_Token_20261";
 const APP_SECRET = "75f43d75c292f7f143cc843934756bec";
 
 async function verifyMetaWebhookSignature(request, rawBody) {
@@ -33,10 +36,15 @@ export async function GET(request) {
 
     if (mode && token) {
         if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-            console.log('✅ CHATBIZ BACKEND: VERIFICATION CHALLENGE RECEIVED');
+            console.log('✅ CHATBIZ BACKEND: VERIFICATION CHALLENGE RECEIVED AND AUTHENTICATED');
+
+            // Return raw challenge text string exactly as text/plain content type
             return new Response(challenge, {
                 status: 200,
-                headers: { 'Content-Type': 'text/plain' },
+                headers: {
+                    'Content-Type': 'text/plain',
+                    'Content-Length': String(challenge ? challenge.length : 0)
+                },
             });
         }
     }
