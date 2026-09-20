@@ -2,14 +2,18 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
+// Extend serverless execution threshold specifically for incoming AI parsing cycles
 export const maxDuration = 30;
 
 // ============================================================================
-// HARDCODED TESTING TOKENS (Updated with a trailing 1 to flush Meta's cache)
+// HARDCODED TESTING TOKENS (Matching your active Meta validation fields)
 // ============================================================================
-const VERIFY_TOKEN = "ChatBiz_Secret_Secure_Token_20261";
+const VERIFY_TOKEN = "ChatBiz_Secret_Secure_Token_2026";
 const APP_SECRET = "75f43d75c292f7f143cc843934756bec";
 
+/**
+ * Cryptographic validation checking that incoming payloads are authentically from Meta
+ */
 async function verifyMetaWebhookSignature(request, rawBody) {
     const signatureHeader = request.headers.get('x-hub-signature-256');
     if (!signatureHeader) return false;
@@ -26,7 +30,7 @@ async function verifyMetaWebhookSignature(request, rawBody) {
 }
 
 // ----------------------------------------------------------------------------
-// GET: Meta Handshake Verification Loop
+// GET: META WEBHOOK HANDSHAKE VERIFICATION ROUTE (Flawless Plain-Text Return)
 // ----------------------------------------------------------------------------
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
@@ -36,23 +40,23 @@ export async function GET(request) {
 
     if (mode && token) {
         if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-            console.log('✅ CHATBIZ BACKEND: VERIFICATION CHALLENGE RECEIVED AND AUTHENTICATED');
+            console.log('✅ CHATBIZ BACKEND: HANDSHAKE CHALLENGE MATCHED');
 
-            // Return raw challenge text string exactly as text/plain content type
-            return new Response(challenge, {
+            // CRITICAL FIX: Utilizing native NextResponse primitives forces Vercel 
+            // to send back the raw scalar string with zero background chunk headers
+            return new NextResponse(challenge, {
                 status: 200,
                 headers: {
                     'Content-Type': 'text/plain',
-                    'Content-Length': String(challenge ? challenge.length : 0)
                 },
             });
         }
     }
-    return new Response('Forbidden Check Mismatch', { status: 403 });
+    return new NextResponse('Forbidden Check Mismatch', { status: 403 });
 }
 
 // ----------------------------------------------------------------------------
-// POST: Incoming Message Ingress
+// POST: INCOMING MESSAGES INGRESS ROUTE
 // ----------------------------------------------------------------------------
 export async function POST(request) {
     try {
@@ -61,22 +65,28 @@ export async function POST(request) {
 
         if (!isAuthentic) {
             console.warn('❌ [Security Mismatch]: Invalid signature header.');
-            return new Response('Unauthorized Signature', { status: 401 });
+            return new NextResponse('Unauthorized Signature', { status: 401 });
         }
 
         const body = JSON.parse(rawBody);
         if (body.object === 'whatsapp_business_account') {
-            const changes = body.entry?.[0]?.changes?.[0]?.value;
+            const entry = body.entry?.[0];
+            const changes = entry?.changes?.[0]?.value;
+
             if (changes && changes.messages) {
                 const messageData = changes.messages[0];
-                console.log(`📬 Message captured from: ${messageData.from}`);
-                console.log(`💬 Text: "${messageData.text?.body}"`);
+                console.log(`\n📬 INCOMING SECURED PACKET CAPTURED (QA)`);
+                console.log(`📱 Phone: ${messageData.from} | 🔤 Type: ${messageData.type}`);
+
+                if (messageData.type === 'text') {
+                    console.log(`💬 Text Content: "${messageData.text?.body}"`);
+                }
             }
-            return new Response('EVENT_RECEIVED', { status: 200 });
+            return new NextResponse('EVENT_RECEIVED', { status: 200 });
         }
-        return new Response('Not Found', { status: 404 });
+        return new NextResponse('Not Found', { status: 404 });
     } catch (error) {
-        console.error('❌ Error processing payload:', error);
-        return new Response('Internal Error', { status: 500 });
+        console.error('❌ ERROR PROCESSING PAYLOAD:', error);
+        return new NextResponse('Internal Error', { status: 500 });
     }
 }
