@@ -1,13 +1,14 @@
 // File Location: app/api/webhook/whatsapp/route.js
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { sendMetaWhatsappMessage } from './metaClient'; // Import our new outbound engine
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const maxDuration = 30;
 
 // ============================================================================
-// HARDCODED TESTING TOKENS (Synchronized with your active Meta fields)
+// HARDCODED TESTING TOKENS (Synchronized with your active Meta validation fields)
 // ============================================================================
 const VERIFY_TOKEN = "ChatBiz_Secret_Secure_Token_2026";
 const APP_SECRET = "75f43d75c292f7f143cc843934756bec";
@@ -31,7 +32,7 @@ function verifyMetaWebhookSignature(rawBody, signatureHeader) {
 }
 
 // ----------------------------------------------------------------------------
-// GET: META WEBHOOK HANDSHAKE VERIFICATION ROUTE (EcoRoute Strict Text Design)
+// GET: META WEBHOOK HANDSHAKE VERIFICATION ROUTE
 // ----------------------------------------------------------------------------
 export async function GET(req) {
     try {
@@ -43,10 +44,7 @@ export async function GET(req) {
         const envToken = (VERIFY_TOKEN || '').trim();
 
         if (mode === 'subscribe' && token === envToken) {
-            console.log('✅ [ChatBiz Webhook] Verification Challenge Received and Approved.');
-
-            // EXACT PORT FROM ECOROUTE: Returns String(challenge) as a raw primitive 
-            // plain-text object with strict content types to guarantee acceptance.
+            console.log('✅ [ChatBiz Webhook] Verification Challenge Approved.');
             return new Response(String(challenge), {
                 status: 200,
                 headers: {
@@ -63,7 +61,7 @@ export async function GET(req) {
 }
 
 // ----------------------------------------------------------------------------
-// POST: INCOMING MESSAGES INGRESS ROUTE
+// POST: INCOMING MESSAGES INGRESS & ECHO RE-ENGAGEMENT LOOP
 // ----------------------------------------------------------------------------
 export async function POST(req) {
     try {
@@ -77,21 +75,31 @@ export async function POST(req) {
 
         const body = JSON.parse(rawBodyText);
 
+        // Strict array verification checks to skip blank notification updates (statuses, read receipts)
         if (!body.object || !body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {
             return NextResponse.json({ success: true, status: 'SKIPPED_EVENT' }, { status: 200 });
         }
 
+        // Safely extract incoming message node parameters
         const valueBlock = body.entry[0].changes[0].value;
         const messageNode = valueBlock.messages[0];
         const metadataNode = valueBlock.metadata || {};
 
         const cleanPhoneNumber = String(messageNode.from || '').trim();
+        const businessPhoneNumberId = metadataNode.phone_number_id; // Grabs the specific test phone ID
         const messageType = messageNode.type;
 
         if (messageType === 'text') {
             const incomingMessage = (messageNode.text?.body || '').trim();
-            console.log(`\n📬 [ChatBiz Ingress] Captured Plain Text Payload:`);
-            console.log(`📱 Phone: ${cleanPhoneNumber} | 💬 Text: "${incomingMessage}"`);
+            console.log(`\n📬 [ChatBiz Ingress Engine] Message from: ${cleanPhoneNumber} -> "${incomingMessage}"`);
+
+            // CONSTRUCT AUTOMATED ECHO REPLY STRING
+            const replyText = `🤖 [ChatBiz QA Server]: Hello! I successfully intercepted your text message: "${incomingMessage}". The bidirectional communication loop is now completely operational! ⚡`;
+
+            // Transmit the reply string back to the user's phone via Meta Graph API
+            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, replyText);
+        } else {
+            console.log(`⚠️ [ChatBiz Ingress Engine] Bypassed non-text media event type payload.`);
         }
 
         return NextResponse.json({ success: true, status: 'EVENT_PROCESSED' }, { status: 200 });
