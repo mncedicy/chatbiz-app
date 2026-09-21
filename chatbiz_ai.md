@@ -37,4 +37,5 @@ For ChatBiz, I highly recommend building your backend AI translation layer using
 
 
 
-I am building a platform called ChatBiz. Attached is the comprehensive, multi-page layout blueprint detailing the exact database schemas, workflows, token subscription matrices, and AI parsing logic we have designed. Please read this file fully. Once you understand the architecture, let's start by writing the complete Noen PostgreSQL database initialization script to create all the necessary tables, enums, and relationships.
+
+
