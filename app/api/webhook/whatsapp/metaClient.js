@@ -1,42 +1,34 @@
-// File Location: app/api/webhook/whatsapp/metaClient.js
+// app/api/webhook/whatsapp/metaClient.js
 
 /**
- * Universal outbound utility to transmit authenticated messages to the Meta Cloud API v22.0
- * @param {string} businessPhoneNumberId - Meta's identifier tracking which bot number is sending the message
- * @param {string} recipientPhone - The target user's mobile number (e.g., 27630117260)
- * @param {string} messageText - The raw body text string to send back to the chat thread
+ * Universal outbound utility to transmit text and interactive payloads to Meta Cloud API v22.0
  */
-export async function sendMetaWhatsappMessage(businessPhoneNumberId, recipientPhone, messageText) {
-    // Retaining v22.0 Graph API endpoint channels exactly as specified
+export async function sendMetaWhatsappMessage(businessPhoneNumberId, recipientPhone, payloadData) {
     const url = `https://graph.facebook.com/v22.0/${businessPhoneNumberId}/messages`;
-
-    // Grabs the token variable string out of your secure Vercel environment configurations
     const token = process.env.WHATSAPP_ACCESS_TOKEN;
 
     if (!token) {
-        console.error('🚨 [Meta API Egress Fault]: WHATSAPP_ACCESS_TOKEN is completely unassigned in server variables.');
+        console.error('🚨 [Meta API Egress Fault]: WHATSAPP_ACCESS_TOKEN is missing.');
         return false;
     }
 
-    // ============================================================================
-    // AUDITING UTILITY: OAUTH TOKEN MASKED STRING LOGGER
-    // ============================================================================
     const cleanToken = token.trim();
-    const tokenLength = cleanToken.length;
-    const startSegment = cleanToken.slice(0, 8);
-    const endSegment = cleanToken.slice(-8);
 
-    console.log(`\n🔍 [OAuth Audit Log]: Evaluating server variable metrics...`);
-    console.log(`📊 Raw Token String Character Length: ${tokenLength}`);
-    console.log(`🔑 Masked Runtime Token Layout: ${startSegment}...[HIDDEN_CHARACTERS]...${endSegment}`);
-
-    const payload = {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: recipientPhone,
-        type: "text",
-        text: { body: messageText }
-    };
+    // Wraps text automatically or transmits raw interactive button payload
+    const bodyPayload = typeof payloadData === 'string'
+        ? {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: recipientPhone,
+            type: 'text',
+            text: { body: payloadData }
+        }
+        : {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: recipientPhone,
+            ...payloadData
+        };
 
     try {
         const response = await fetch(url, {
@@ -45,7 +37,7 @@ export async function sendMetaWhatsappMessage(businessPhoneNumberId, recipientPh
                 'Authorization': `Bearer ${cleanToken}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(bodyPayload)
         });
 
         const data = await response.json();
@@ -61,4 +53,24 @@ export async function sendMetaWhatsappMessage(businessPhoneNumberId, recipientPh
         console.error('❌ [Egress Fatal Exception]: Failed to connect to Meta Graph API:', error);
         return false;
     }
+}
+
+/**
+ * Builder utility for interactive Meta button replies
+ */
+export function buildInteractiveButtons(headerText, bodyText, buttons) {
+    return {
+        type: 'interactive',
+        interactive: {
+            type: 'button',
+            header: { type: 'text', text: headerText },
+            body: { text: bodyText },
+            action: {
+                buttons: buttons.map((btn) => ({
+                    type: 'reply',
+                    reply: { id: btn.id, title: btn.title }
+                }))
+            }
+        }
+    };
 }
