@@ -2,8 +2,8 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { sendMetaWhatsappMessage, buildInteractiveButtons } from './metaClient';
-import { getOrCreateSession, updateSession } from '../../../../lib/sessionEngine';
-import { parseUserIntent } from '../../../../lib/aiParser';
+import { getOrCreateSession, updateSession } from '@/lib/sessionEngine';
+import { parseUserIntent } from '@/lib/aiParser';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -70,10 +70,10 @@ export async function POST(req) {
         const cleanPhoneNumber = String(messageNode.from || '').trim();
         const businessPhoneNumberId = metadataNode.phone_number_id;
 
-        // 1. Get or initialize Session and retrieve User Profile
+        // 1. Fetch or initialize Session & User Profile
         const { session, user } = await getOrCreateSession(cleanPhoneNumber);
 
-        // 2. Extract Input
+        // 2. Extract Message Content
         let userMessage = '';
         let selectedButtonId = null;
 
@@ -86,7 +86,7 @@ export async function POST(req) {
 
         console.log(`\n📬 [Ingress] User: ${cleanPhoneNumber} (${user.first_name}) | Step: ${session.current_step} | Input: "${userMessage}"`);
 
-        // 3. Handle Interactive Button Selections
+        // 3. Handle Button Selections
         if (selectedButtonId) {
             if (selectedButtonId === 'BTN_BUY_FIND') {
                 await updateSession(session.id, { currentStep: 'SEARCH_SERVICES', activeMode: 'CUSTOMER_MODE' });
@@ -118,12 +118,11 @@ export async function POST(req) {
             }
         }
 
-        // 4. Parse AI Intent for free-text input
+        // 4. AI Intent Parsing for free-text messages
         const aiResult = await parseUserIntent(userMessage);
 
-        // 5. Dynamic Main Menu Handler with Personalization
+        // 5. Main Menu Handler with Personalization
         if (session.current_step === 'MAIN_MENU' || aiResult.intent === 'NAVIGATE_MENU') {
-            // Build dynamic display greeting
             const isRegisteredUser = user.first_name && user.first_name !== 'WhatsApp';
             const userTitle = user.title ? `${user.title} ` : '';
             const greetingName = isRegisteredUser ? `${userTitle}${user.first_name}` : 'Friend';
@@ -147,7 +146,7 @@ export async function POST(req) {
             return NextResponse.json({ success: true, status: 'MAIN_MENU_SENT' }, { status: 200 });
         }
 
-        // 6. Active Search Flow
+        // 6. Search Handler
         if (session.current_step === 'SEARCH_SERVICES') {
             const reply = `🤖 *AI Understanding:* Intent: *${aiResult.intent}* | Category: *${aiResult.category || 'General'}*\nKeywords: ${aiResult.extracted_keywords.join(', ') || 'None'}\n\nSearching nearby providers...`;
 
