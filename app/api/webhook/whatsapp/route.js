@@ -70,10 +70,10 @@ export async function POST(req) {
         const cleanPhoneNumber = String(messageNode.from || '').trim();
         const businessPhoneNumberId = metadataNode.phone_number_id;
 
-        // 1. Get or initialize PostgreSQL Session
-        const { session } = await getOrCreateSession(cleanPhoneNumber);
+        // 1. Get or initialize Session and retrieve User Profile
+        const { session, user } = await getOrCreateSession(cleanPhoneNumber);
 
-        // 2. Extract Input (Button reply vs Free text)
+        // 2. Extract Input
         let userMessage = '';
         let selectedButtonId = null;
 
@@ -84,7 +84,7 @@ export async function POST(req) {
             userMessage = messageNode.interactive?.button_reply?.title || '';
         }
 
-        console.log(`\n📬 [Ingress] User: ${cleanPhoneNumber} | Step: ${session.current_step} | Input: "${userMessage}"`);
+        console.log(`\n📬 [Ingress] User: ${cleanPhoneNumber} (${user.first_name}) | Step: ${session.current_step} | Input: "${userMessage}"`);
 
         // 3. Handle Interactive Button Selections
         if (selectedButtonId) {
@@ -102,7 +102,7 @@ export async function POST(req) {
                 await updateSession(session.id, { currentStep: 'MERCHANT_PORTAL', activeMode: 'MERCHANT_MODE' });
                 const merchantMenu = buildInteractiveButtons(
                     "🏪 Merchant Dashboard",
-                    "Welcome to your business hub. Select an option below:",
+                    `Welcome to your business hub, ${user.first_name}.\n\nSelect an option below:`,
                     [
                         { id: 'BTN_MY_ORDERS', title: '📋 My Orders' },
                         { id: 'BTN_WALLET', title: '🪙 Token Wallet' },
@@ -118,14 +118,25 @@ export async function POST(req) {
             }
         }
 
-        // 4. Pass Free-Text Messages to AI Intent Engine
+        // 4. Parse AI Intent for free-text input
         const aiResult = await parseUserIntent(userMessage);
 
-        // 5. Default Main Menu Handler
+        // 5. Dynamic Main Menu Handler with Personalization
         if (session.current_step === 'MAIN_MENU' || aiResult.intent === 'NAVIGATE_MENU') {
+            // Build dynamic display greeting
+            const isRegisteredUser = user.first_name && user.first_name !== 'WhatsApp';
+            const userTitle = user.title ? `${user.title} ` : '';
+            const greetingName = isRegisteredUser ? `${userTitle}${user.first_name}` : 'Friend';
+
+            const headerText = `Welcome to ChatBiz 🇿🇦`;
+            const bodyText = `Sawubona / Hello ${greetingName}!\n\n` +
+                `📱 *Account:* +${cleanPhoneNumber}\n` +
+                `⚙️ *Mode:* ${session.active_mode === 'MERCHANT_MODE' ? 'Merchant 🏪' : 'Customer 🛒'}\n\n` +
+                `How can we help you today? Choose an option below:`;
+
             const mainMenu = buildInteractiveButtons(
-                "Welcome to ChatBiz 🇿🇦",
-                "Your zero-download local marketplace. How can we help you today?",
+                headerText,
+                bodyText,
                 [
                     { id: 'BTN_BUY_FIND', title: '🔍 Find Services' },
                     { id: 'BTN_MERCHANT_PORTAL', title: '🏪 Business Portal' }
@@ -136,7 +147,7 @@ export async function POST(req) {
             return NextResponse.json({ success: true, status: 'MAIN_MENU_SENT' }, { status: 200 });
         }
 
-        // 6. Active Search Flow powered by AI
+        // 6. Active Search Flow
         if (session.current_step === 'SEARCH_SERVICES') {
             const reply = `🤖 *AI Understanding:* Intent: *${aiResult.intent}* | Category: *${aiResult.category || 'General'}*\nKeywords: ${aiResult.extracted_keywords.join(', ') || 'None'}\n\nSearching nearby providers...`;
 
