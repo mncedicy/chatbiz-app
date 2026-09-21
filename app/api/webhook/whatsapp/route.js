@@ -8,20 +8,18 @@ export const revalidate = 0;
 export const maxDuration = 30;
 
 // ============================================================================
-// HARDCODED TESTING TOKENS (Update with your specific CHATBIZ dashboard keys)
+// SYSTEM ENVIRONMENT VARIABLES (Loaded securely from Vercel Project Settings)
 // ============================================================================
-const VERIFY_TOKEN = "ChatBiz_Secret_Secure_Token_2026";
-
-// 🔴 FIX: Replace this string with your copied ChatBiz App Secret (App Settings > Basic)
-const APP_SECRET = "75f43d75c292f7f143cc843934756bec";
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "ChatBiz_Secret_Secure_Token_2026";
+const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
 
 /**
  * Cryptographic validation checking that incoming payloads are authentically from Meta
  */
 function verifyMetaWebhookSignature(rawBody, signatureHeader) {
-    if (!APP_SECRET || APP_SECRET.startsWith("PASTE_")) {
-        console.warn('⚠️ [Security]: Valid ChatBiz APP_SECRET is missing. Bypassing check for development.');
-        return true; // Temporary bypass to let you test immediately if you don't have the secret handy
+    if (!APP_SECRET) {
+        console.warn('⚠️ [Security]: WHATSAPP_APP_SECRET environment variable is missing. Bypassing check.');
+        return true;
     }
 
     if (!signatureHeader) {
@@ -56,6 +54,7 @@ export async function GET(req) {
         const challenge = searchParams.get('hub.challenge');
 
         if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+            console.log('✅ [ChatBiz Webhook]: Handshake verification successful.');
             return new Response(String(challenge), {
                 status: 200,
                 headers: {
@@ -81,7 +80,6 @@ export async function POST(req) {
 
         const isVerifiedSource = verifyMetaWebhookSignature(rawBodyText, signatureHeader);
         if (!isVerifiedSource) {
-            console.error('❌ [Access Denied]: Webhook signature mismatch.');
             return NextResponse.json({ error: 'Unauthorized signature.' }, { status: 401 });
         }
 
@@ -103,10 +101,8 @@ export async function POST(req) {
             const incomingMessage = (messageNode.text?.body || '').trim();
             console.log(`\n📬 [ChatBiz Ingress Engine] Message from: ${cleanPhoneNumber} -> "${incomingMessage}"`);
 
-            // AUTOMATED ECHO REPLY STRING
             const replyText = `🤖 [ChatBiz QA Server]: Hello! I successfully intercepted your text message: "${incomingMessage}". The bidirectional communication loop is now completely operational! ⚡`;
 
-            // Transmit the reply string back to the phone via Meta Graph API
             await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, replyText);
         }
 

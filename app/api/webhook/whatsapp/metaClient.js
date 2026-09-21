@@ -1,16 +1,22 @@
 // File Location: app/api/webhook/whatsapp/metaClient.js
 
 /**
- * Universal outbound utility to transmit authenticated messages to the Meta WhatsApp Cloud API
+ * Universal outbound utility to transmit authenticated messages, lists, and button menus to the Meta Cloud API
  * @param {string} businessPhoneNumberId - Meta's identifier tracking which bot number is sending the message
  * @param {string} recipientPhone - The target user's mobile number (e.g., 27821234567)
- * @param {string} messageText - The raw body text string to send
+ * @param {string} messageText - The raw body text string to send back to the chat thread
  */
 export async function sendMetaWhatsappMessage(businessPhoneNumberId, recipientPhone, messageText) {
-    const url = `https://facebook.com{businessPhoneNumberId}/messages`;
+    // UPDATED: Dynamically tracking the newly specified v22.0 Graph API endpoint channel paths
+    const url = `https://graph.facebook.com/v22.0/${businessPhoneNumberId}/messages`;
 
-    // HARDCODED TESTING TOKEN (Matching your active development sandbox setup)
-    const token = "EAAMwAnscw50BO0ZBf5u9fO0fPZAnlEIsHIZBNZCpOQG1tKveZBt88390mZCoY886RzUof2wNnZA4F6ZB86L1hZBnN4gA8gY75p2f22b2b2b2b2b2b2b"; // Your exact copied access token
+    // Grabs token directly from your Vercel Project Settings for secure authorization configurations
+    const token = process.env.WHATSAPP_ACCESS_TOKEN;
+
+    if (!token) {
+        console.error('🚨 [Meta API Egress Fault]: WHATSAPP_ACCESS_TOKEN is not defined inside server variables.');
+        return false;
+    }
 
     const payload = {
         messaging_product: "whatsapp",
@@ -37,7 +43,7 @@ export async function sendMetaWhatsappMessage(businessPhoneNumberId, recipientPh
             return false;
         }
 
-        console.log(`🚀 [Egress Engine]: Message safely transmitted back to user: ${recipientPhone}`);
+        console.log(`🚀 [Egress Engine]: Message safely transmitted back via v22.0 to user: ${recipientPhone}`);
         return true;
     } catch (error) {
         console.error('❌ [Egress Fatal Exception]: Failed to connect to Meta Graph API:', error);
