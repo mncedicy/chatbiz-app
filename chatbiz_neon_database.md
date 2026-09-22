@@ -1,3 +1,5 @@
+#  /chatbiz_neon_database.md
+
 # 🐘 Neon (Pure Serverless PostgreSQL)
 
 
@@ -68,11 +70,17 @@ CREATE TABLE merchant_profiles (
     user_id BIGINT NOT NULL REFERENCES core_users(id) ON DELETE CASCADE,
     business_name TEXT NOT NULL,
     business_class business_class_enum NOT NULL,
-    contact_phone_secondary TEXT,
+    business_type TEXT,
+    business_desc TEXT,
+    province TEXT NOT NULL,
+    city TEXT NOT NULL,
+    suburb TEXT NOT NULL,
+    street_address TEXT NOT NULL,
     full_physical_address TEXT NOT NULL,
+    city_region TEXT NOT NULL, -- e.g., 'Gauteng - Johannesburg'
     geographic_coordinates GEOMETRY(Point, 4326) NOT NULL, -- Core PostGIS coordinate field
     country_code TEXT NOT NULL DEFAULT 'ZA',
-    city_region TEXT NOT NULL, -- e.g., 'Gauteng - Tembisa'
+    contact_phone_secondary TEXT,
     is_fica_verified BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
