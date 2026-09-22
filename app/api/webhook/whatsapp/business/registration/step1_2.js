@@ -25,7 +25,7 @@ export async function handleStep1And2(params) {
             [{
                 title: "Business Types",
                 rows: [
-                    { id: 'BCLASS_VOLUME_RETAIL', title: '🛍️ Shop & Quick Orders', description: 'Food menus, online shop, fast sales' },
+                    { id: 'BCLASS_SHOP', title: '🛍️ Shop & Quick Orders', description: 'Food menus, online shop, fast sales' },
                     { id: 'BCLASS_HIGH_TICKET_LEAD', title: '🛠️ Service & Bookings', description: 'Repairs, quotes, call-outs, hiring' },
                     { id: 'BCLASS_EVENT_INFRASTRUCTURE', title: '📅 Event Rentals', description: 'Tent hire, sound systems, party gear' }
                 ]
@@ -44,7 +44,7 @@ export async function handleStep1And2(params) {
         });
 
         let typeRows = [];
-        if (selectedClass === 'VOLUME_RETAIL') {
+        if (selectedClass === 'SHOP') {
             typeRows = [
                 { id: 'BTYPE_Kitchens', title: '🍳 Food & Fast Food', description: 'Meals, takeaway, daily food menus' },
                 { id: 'BTYPE_Resellers', title: '🛍️ Clothes & Retail', description: 'Clothing, hair, beauty products, shops' },

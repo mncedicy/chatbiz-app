@@ -45,7 +45,7 @@ export async function handleStep7And8(params) {
 
         const meta = session.cached_metadata || {};
         const bizName = meta.pending_business_name || 'My Business';
-        const bizClass = meta.pending_business_class || 'VOLUME_RETAIL';
+        const bizClass = meta.pending_business_class || 'SHOP';
         const bizType = meta.pending_business_type || 'General';
         const province = meta.pending_province || 'Gauteng';
         const city = meta.pending_city || 'Johannesburg';
