@@ -1,6 +1,7 @@
 // app/api/webhook/whatsapp/route.js
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import pool from '@/lib/db';
 import { sendMetaWhatsappMessage, buildInteractiveButtons, buildInteractiveList } from './metaClient';
 import { getOrCreateSession, updateSession, getUserBusinesses } from '@/lib/sessionEngine';
 import { parseUserIntent } from '@/lib/aiParser';
@@ -84,6 +85,29 @@ export async function POST(req) {
 
         console.log(`📬 [Ingress] Step: ${session.current_step} | Input: "${userMessage}" | ButtonID: "${selectedButtonId}"`);
 
+        // Global Cancel Command
+        if (userMessage.toLowerCase() === 'menu' || selectedButtonId === 'BTN_MAIN_MENU') {
+            await updateSession(session.id, { currentStep: 'MAIN_MENU', activeMode: 'CUSTOMER_MODE' });
+
+            const isRegisteredUser = user.first_name && user.first_name !== 'WhatsApp';
+            const userTitle = user.title ? `${user.title} ` : '';
+            const greetingName = isRegisteredUser ? `${userTitle}${user.first_name}` : 'Friend';
+
+            const mainMenu = buildInteractiveButtons(
+                `Welcome to ChatBiz 🇿🇦`,
+                `Sawubona / Hello ${greetingName}!\n\n` +
+                `📱 *Account:* +${cleanPhoneNumber}\n` +
+                `⚙️ *Mode:* Merchant 🏪\n\n` +
+                `How can we help you today? Choose an option below:`,
+                [
+                    { id: 'BTN_BUY_FIND', title: '🔍 Find Services' },
+                    { id: 'BTN_MERCHANT_PORTAL', title: '🏪 Business Portal' }
+                ]
+            );
+            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, mainMenu);
+            return NextResponse.json({ success: true }, { status: 200 });
+        }
+
         // =========================================================================
         // 1. BUSINESS PORTAL CLICK HANDLER
         // =========================================================================
@@ -94,7 +118,6 @@ export async function POST(req) {
             const userBusinessCount = businesses.length;
             const MAX_BUSINESSES = 5;
 
-            // User has 0 businesses
             if (userBusinessCount === 0) {
                 const noBizPayload = buildInteractiveButtons(
                     "🏪 Business Portal",
@@ -108,7 +131,6 @@ export async function POST(req) {
                 return NextResponse.json({ success: true }, { status: 200 });
             }
 
-            // User has 1 or 2 businesses
             if (userBusinessCount <= 2) {
                 const buttons = businesses.map((biz) => ({
                     id: `BTN_SELECT_BIZ_${biz.id}`,
@@ -131,7 +153,6 @@ export async function POST(req) {
                 return NextResponse.json({ success: true }, { status: 200 });
             }
 
-            // User has 3 to 5 businesses (Use Section List)
             const listRows = businesses.map((biz) => ({
                 id: `BTN_SELECT_BIZ_${biz.id}`,
                 title: biz.business_name,
@@ -169,9 +190,9 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // 2. REGISTER BIZ STEP 1: Capture Name ("stims")
+        // 2. REGISTER BIZ STEP 1: Capture Name ("stims") -> Present Taxonomy List
         // =========================================================================
-        if (session.current_step === 'REGISTER_BIZ_NAME' && userMessage.toLowerCase() !== 'menu') {
+        if (session.current_step === 'REGISTER_BIZ_NAME') {
             const businessNameInput = userMessage.trim();
 
             if (!businessNameInput) {
@@ -184,27 +205,86 @@ export async function POST(req) {
                 metadata: { ...session.cached_metadata, pending_business_name: businessNameInput }
             });
 
-            await sendMetaWhatsappMessage(
-                businessPhoneNumberId,
-                cleanPhoneNumber,
-                `✅ Business Name set to: *${businessNameInput}*\n\n` +
-                `📝 *Business Registration (2/3)*\n\n` +
-                `What service or product does your business provide? (e.g., "Fast Food & Catering" or "Plumbing Services")`
+            // Build Taxonomy Interactive List
+            const categoryListPayload = buildInteractiveList(
+                "📝 Business Registration (2/3)",
+                `Business Name set to: *${businessNameInput}*\n\n` +
+                `Select the primary category that best describes your business:`,
+                "Select Category",
+                [
+                    {
+                        title: "Business Categories",
+                        rows: [
+                            {
+                                id: 'CAT_VOLUME_RETAIL',
+                                title: '🍗 Food & Retail',
+                                description: 'Kitchens, Resellers, Gas Cylinders'
+                            },
+                            {
+                                id: 'CAT_EMERGENCY_TRADE',
+                                title: '🛠️ Emergency / Trade',
+                                description: 'Plumbers, Electricians, Roadside Tyre'
+                            },
+                            {
+                                id: 'CAT_BOOKINGS_EVENTS',
+                                title: '📅 Bookings & Events',
+                                description: 'Salons, Daycares, Tents/DJs, Fridges'
+                            },
+                            {
+                                id: 'CAT_LOGISTICS',
+                                title: '🚚 Logistics & Transport',
+                                description: 'Bakkie Hire, Courier, Laundry Collect'
+                            }
+                        ]
+                    }
+                ]
             );
 
-            return NextResponse.json({ success: true, status: 'BIZ_NAME_SAVED' }, { status: 200 });
+            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, categoryListPayload);
+            return NextResponse.json({ success: true, status: 'TAXONOMY_LIST_SENT' }, { status: 200 });
         }
 
         // =========================================================================
-        // 3. REGISTER BIZ STEP 2: Capture Category
+        // 3. REGISTER BIZ STEP 2: Handle Category Selection & Save to Postgres DB
         // =========================================================================
-        if (session.current_step === 'REGISTER_BIZ_CATEGORY' && userMessage.toLowerCase() !== 'menu') {
-            const categoryInput = userMessage.trim();
+        if (session.current_step === 'REGISTER_BIZ_CATEGORY' && selectedButtonId?.startsWith('CAT_')) {
             const bizName = session.cached_metadata?.pending_business_name || 'My Business';
+
+            // Map selected list item to DB business_class_enum
+            let businessClass = 'VOLUME_RETAIL';
+            let categoryLabel = 'Food & Retail';
+
+            if (selectedButtonId === 'CAT_VOLUME_RETAIL') {
+                businessClass = 'VOLUME_RETAIL';
+                categoryLabel = 'Food & Retail';
+            } else if (selectedButtonId === 'CAT_EMERGENCY_TRADE') {
+                businessClass = 'HIGH_TICKET_LEAD';
+                categoryLabel = 'Emergency / Trade Services';
+            } else if (selectedButtonId === 'CAT_BOOKINGS_EVENTS') {
+                businessClass = 'EVENT_INFRASTRUCTURE';
+                categoryLabel = 'Bookings & Events';
+            } else if (selectedButtonId === 'CAT_LOGISTICS') {
+                businessClass = 'HIGH_TICKET_LEAD';
+                categoryLabel = 'Logistics & Transport';
+            }
+
+            // Insert new record into PostgreSQL merchant_profiles
+            let createdBizId = null;
+            if (user.id) {
+                const insertRes = await pool.query(
+                    `INSERT INTO merchant_profiles (user_id, business_name, business_class, is_fica_verified)
+                     VALUES ($1, $2, $3, 'UNSUBMITTED')
+                     RETURNING id`,
+                    [user.id, bizName, businessClass]
+                );
+                createdBizId = insertRes.rows[0]?.id;
+            }
 
             await updateSession(session.id, {
                 currentStep: 'MAIN_MENU',
-                metadata: { ...session.cached_metadata, pending_category: categoryInput }
+                activeMode: 'MERCHANT_MODE',
+                activeBusinessId: createdBizId,
+                metadata: {}
             });
 
             await sendMetaWhatsappMessage(
@@ -212,11 +292,12 @@ export async function POST(req) {
                 cleanPhoneNumber,
                 `🎉 *Business Registered Successfully!*\n\n` +
                 `🏢 *Name:* ${bizName}\n` +
-                `🏷️ *Category:* ${categoryInput}\n\n` +
-                `Type *menu* to return to the main menu.`
+                `🏷️ *Category:* ${categoryLabel}\n` +
+                `⚙️ *Class:* \`${businessClass}\`\n\n` +
+                `Type *menu* to access your business portal at any time.`
             );
 
-            return NextResponse.json({ success: true, status: 'BIZ_REGISTRATION_COMPLETE' }, { status: 200 });
+            return NextResponse.json({ success: true, status: 'BIZ_REGISTERED_IN_DB' }, { status: 200 });
         }
 
         // =========================================================================
@@ -234,7 +315,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // 5. ORIGINAL RESTORED MAIN MENU HANDLER
+        // 5. RESTORED MAIN MENU HANDLER
         // =========================================================================
         const isExplicitMenuTrigger = ['menu', 'hi', 'hello', 'start', 'reset'].includes(userMessage.toLowerCase()) || selectedButtonId === 'BTN_MAIN_MENU';
 
