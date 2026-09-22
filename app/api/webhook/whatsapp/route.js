@@ -70,8 +70,10 @@ export async function POST(req) {
         const cleanPhoneNumber = String(messageNode.from || '').trim();
         const businessPhoneNumberId = metadataNode.phone_number_id;
 
-        // 1. Fetch or initialize Session & User Profile
-        const { session, user } = await getOrCreateSession(cleanPhoneNumber);
+        // 1. Fetch Session & User with safe destructuring
+        const sessionResult = await getOrCreateSession(cleanPhoneNumber);
+        const session = sessionResult?.session || { active_mode: 'CUSTOMER_MODE', current_step: 'MAIN_MENU' };
+        const user = sessionResult?.user || { first_name: 'WhatsApp', last_name: 'User', title: null };
 
         // 2. Extract Message Content
         let userMessage = '';
@@ -84,7 +86,8 @@ export async function POST(req) {
             userMessage = messageNode.interactive?.button_reply?.title || '';
         }
 
-        console.log(`\n📬 [Ingress] User: ${cleanPhoneNumber} (${user.first_name}) | Step: ${session.current_step} | Input: "${userMessage}"`);
+        const firstNameDisplay = user.first_name || 'User';
+        console.log(`\n📬 [Ingress] User: ${cleanPhoneNumber} (${firstNameDisplay}) | Step: ${session.current_step} | Input: "${userMessage}"`);
 
         // 3. Handle Button Selections
         if (selectedButtonId) {
@@ -102,7 +105,7 @@ export async function POST(req) {
                 await updateSession(session.id, { currentStep: 'MERCHANT_PORTAL', activeMode: 'MERCHANT_MODE' });
                 const merchantMenu = buildInteractiveButtons(
                     "🏪 Merchant Dashboard",
-                    `Welcome to your business hub, ${user.first_name}.\n\nSelect an option below:`,
+                    `Welcome to your business hub, ${firstNameDisplay}.\n\nSelect an option below:`,
                     [
                         { id: 'BTN_MY_ORDERS', title: '📋 My Orders' },
                         { id: 'BTN_WALLET', title: '🪙 Token Wallet' },
