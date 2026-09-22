@@ -70,12 +70,12 @@ export async function POST(req) {
         const cleanPhoneNumber = String(messageNode.from || '').trim();
         const businessPhoneNumberId = metadataNode.phone_number_id;
 
-        // 1. Fetch Session & User with safe destructuring
+        // 1. Fetch Session & User Profile
         const sessionResult = await getOrCreateSession(cleanPhoneNumber);
         const session = sessionResult?.session || { active_mode: 'CUSTOMER_MODE', current_step: 'MAIN_MENU' };
         const user = sessionResult?.user || { first_name: 'WhatsApp', last_name: 'User', title: null };
 
-        // 2. Extract Message Content
+        // 2. Extract Message Input
         let userMessage = '';
         let selectedButtonId = null;
 
@@ -89,14 +89,14 @@ export async function POST(req) {
         const firstNameDisplay = user.first_name || 'User';
         console.log(`\n📬 [Ingress] User: ${cleanPhoneNumber} (${firstNameDisplay}) | Step: ${session.current_step} | Input: "${userMessage}"`);
 
-        // 3. Handle Button Selections
+        // 3. Handle Interactive Button Actions
         if (selectedButtonId) {
             if (selectedButtonId === 'BTN_BUY_FIND') {
                 await updateSession(session.id, { currentStep: 'SEARCH_SERVICES', activeMode: 'CUSTOMER_MODE' });
                 await sendMetaWhatsappMessage(
                     businessPhoneNumberId,
                     cleanPhoneNumber,
-                    `🔍 *Find Services & Products*\n\nTell me what you're looking for (e.g., "I need a plumber in Soweto" or "Want to order kota").`
+                    `🔍 *Find Services & Products*\n\nTell me what you're looking for (e.g., "I need a plumber in Soweto" or "Want to order kota").\n\n💡 _Type *menu* at any time to go back._`
                 );
                 return NextResponse.json({ success: true }, { status: 200 });
             }
@@ -121,11 +121,19 @@ export async function POST(req) {
             }
         }
 
-        // 4. AI Intent Parsing for free-text messages
+        // 4. Parse AI Intent
         const aiResult = await parseUserIntent(userMessage);
 
-        // 5. Main Menu Handler with Personalization
-        if (session.current_step === 'MAIN_MENU' || aiResult.intent === 'NAVIGATE_MENU') {
+        // Explicit menu triggers (hardcoded keywords or AI intent)
+        const isMenuTrigger = ['menu', 'hi', 'hello', 'start', 'reset', 'main menu'].includes(userMessage.toLowerCase());
+
+        // 5. Main Menu Handler (Evaluated before step checks)
+        if (session.current_step === 'MAIN_MENU' || aiResult.intent === 'NAVIGATE_MENU' || isMenuTrigger) {
+            // Update session in DB back to MAIN_MENU
+            if (session.id && session.current_step !== 'MAIN_MENU') {
+                await updateSession(session.id, { currentStep: 'MAIN_MENU' });
+            }
+
             const isRegisteredUser = user.first_name && user.first_name !== 'WhatsApp';
             const userTitle = user.title ? `${user.title} ` : '';
             const greetingName = isRegisteredUser ? `${userTitle}${user.first_name}` : 'Friend';
@@ -149,9 +157,9 @@ export async function POST(req) {
             return NextResponse.json({ success: true, status: 'MAIN_MENU_SENT' }, { status: 200 });
         }
 
-        // 6. Search Handler
+        // 6. Active Search Step (Only reached if not returning to menu)
         if (session.current_step === 'SEARCH_SERVICES') {
-            const reply = `🤖 *AI Understanding:* Intent: *${aiResult.intent}* | Category: *${aiResult.category || 'General'}*\nKeywords: ${aiResult.extracted_keywords.join(', ') || 'None'}\n\nSearching nearby providers...`;
+            const reply = `🤖 *AI Understanding:* Intent: *${aiResult.intent}* | Category: *${aiResult.category || 'General'}*\nKeywords: ${aiResult.extracted_keywords?.join(', ') || 'None'}\n\nSearching nearby providers...\n\n💡 _Type *menu* to go back to the main menu._`;
 
             await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, reply);
             return NextResponse.json({ success: true, status: 'SEARCH_PROCESSED' }, { status: 200 });
