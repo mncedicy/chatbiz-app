@@ -109,7 +109,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // 1. BUSINESS PORTAL CLICK HANDLER
+        // 1. BUSINESS PORTAL CLICK HANDLER (STRICT 3-BUTTON SAFEGUARD)
         // =========================================================================
         if (selectedButtonId === 'BTN_MERCHANT_PORTAL') {
             await updateSession(session.id, { currentStep: 'BUSINESS_SELECTION', activeMode: 'MERCHANT_MODE' });
@@ -118,6 +118,7 @@ export async function POST(req) {
             const userBusinessCount = businesses.length;
             const MAX_BUSINESSES = 5;
 
+            // Option 1: 0 Businesses
             if (userBusinessCount === 0) {
                 const noBizPayload = buildInteractiveButtons(
                     "🏪 Business Portal",
@@ -131,14 +132,19 @@ export async function POST(req) {
                 return NextResponse.json({ success: true }, { status: 200 });
             }
 
-            if (userBusinessCount <= 2) {
-                const buttons = businesses.map((biz) => ({
-                    id: `BTN_SELECT_BIZ_${biz.id}`,
-                    title: biz.business_name.length > 20 ? biz.business_name.substring(0, 17) + '...' : biz.business_name
-                }));
+            // Option 2: 1 Business (Fits into 3 Quick Reply Buttons: [Biz 1, Register New, Main Menu])
+            if (userBusinessCount === 1) {
+                const buttons = [
+                    {
+                        id: `BTN_SELECT_BIZ_${businesses[0].id}`,
+                        title: businesses[0].business_name.length > 20
+                            ? businesses[0].business_name.substring(0, 17) + '...'
+                            : businesses[0].business_name
+                    }
+                ];
 
                 if (userBusinessCount < MAX_BUSINESSES) {
-                    buttons.push({ id: 'BTN_CREATE_BUSINESS', title: '➕ Register Business' });
+                    buttons.push({ id: 'BTN_CREATE_BUSINESS', title: '➕ Register New' });
                 }
 
                 buttons.push({ id: 'BTN_MAIN_MENU', title: '⬅️ Main Menu' });
@@ -153,9 +159,10 @@ export async function POST(req) {
                 return NextResponse.json({ success: true }, { status: 200 });
             }
 
+            // Option 3: 2 or more businesses (Always use List Message to prevent >3 button WhatsApp error)
             const listRows = businesses.map((biz) => ({
                 id: `BTN_SELECT_BIZ_${biz.id}`,
-                title: biz.business_name,
+                title: biz.business_name.length > 24 ? biz.business_name.substring(0, 21) + '...' : biz.business_name,
                 description: `Category: ${biz.business_class?.replace('_', ' ') || 'General'}`
             }));
 
@@ -163,14 +170,14 @@ export async function POST(req) {
                 listRows.push({
                     id: 'BTN_CREATE_BUSINESS',
                     title: '➕ Register New Business',
-                    description: `You have used ${userBusinessCount}/5 slots`
+                    description: `Slots used: ${userBusinessCount}/${MAX_BUSINESSES}`
                 });
             }
 
             listRows.push({
                 id: 'BTN_MAIN_MENU',
                 title: '⬅️ Main Menu',
-                description: 'Return to customer portal'
+                description: 'Return to customer options'
             });
 
             const bizListPayload = buildInteractiveList(
@@ -434,7 +441,7 @@ export async function POST(req) {
                 `📝 *Business Registration (8/8)*\n\n` +
                 `🤖 *Why AI Description Matters*\n` +
                 `When local customers search using custom phrases (e.g. *"beef kota with extra cheese"* or *"mobile fridge for hire"*), our AI searches this text to match your business directly!\n\n` +
-                `*Please type a summary of what you offer:*\n` +
+                `*Please type a short description of what you offer:*\n` +
                 `_Example: "We sell authentic quarter-loaf kotas, Russian chips, and soft drinks with fast local township delivery."_`
             );
 
@@ -442,7 +449,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // STEP 8/8: Capture Description -> Insert Full Structured Details & Save Record
+        // STEP 8/8: Capture Description -> Insert Full Record into Database
         // =========================================================================
         if (session.current_step === 'REG_8_DESC') {
             const descInput = userMessage.trim();
