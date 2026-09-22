@@ -190,9 +190,23 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // 2. REGISTER BIZ STEP 1: Capture Name ("stims") -> Present Taxonomy List
+        // START REGISTRATION: BUTTON CLICK -> STEP 1/7
         // =========================================================================
-        if (session.current_step === 'REGISTER_BIZ_NAME') {
+        if (selectedButtonId === 'BTN_CREATE_BUSINESS') {
+            await updateSession(session.id, { currentStep: 'REG_1_NAME', activeMode: 'MERCHANT_MODE', metadata: {} });
+
+            await sendMetaWhatsappMessage(
+                businessPhoneNumberId,
+                cleanPhoneNumber,
+                `📝 *Business Registration (1/7)*\n\nPlease type the *official name* of your business (e.g., "Soweto Fast Kasi Bites").\n\n💡 _Type *menu* to cancel._`
+            );
+            return NextResponse.json({ success: true }, { status: 200 });
+        }
+
+        // =========================================================================
+        // STEP 1/7: Capture Business Name -> Present Business Class (2/7)
+        // =========================================================================
+        if (session.current_step === 'REG_1_NAME') {
             const businessNameInput = userMessage.trim();
 
             if (!businessNameInput) {
@@ -201,81 +215,256 @@ export async function POST(req) {
             }
 
             await updateSession(session.id, {
-                currentStep: 'REGISTER_BIZ_CATEGORY',
+                currentStep: 'REG_2_CLASS',
                 metadata: { ...session.cached_metadata, pending_business_name: businessNameInput }
             });
 
-            // Build Taxonomy Interactive List
-            const categoryListPayload = buildInteractiveList(
-                "📝 Business Registration (2/3)",
-                `Business Name set to: *${businessNameInput}*\n\n` +
-                `Select the primary category that best describes your business:`,
-                "Select Category",
+            const classListPayload = buildInteractiveList(
+                "📝 Business Registration (2/7)",
+                `Business Name: *${businessNameInput}*\n\nSelect the primary architectural model for your operations:`,
+                "Select Model",
                 [
                     {
-                        title: "Business Categories",
+                        title: "Business Class Models",
                         rows: [
                             {
-                                id: 'CAT_VOLUME_RETAIL',
-                                title: '🍗 Food & Retail',
-                                description: 'Kitchens, Resellers, Gas Cylinders'
+                                id: 'BCLASS_VOLUME_RETAIL',
+                                title: '🍗 Volume Retail',
+                                description: 'E-commerce cart, item menus, instant checkout'
                             },
                             {
-                                id: 'CAT_EMERGENCY_TRADE',
-                                title: '🛠️ Emergency / Trade',
-                                description: 'Plumbers, Electricians, Roadside Tyre'
+                                id: 'BCLASS_HIGH_TICKET_LEAD',
+                                title: '🛠️ High-Ticket Lead',
+                                description: 'On-demand dispatch, quotes, milestone billing'
                             },
                             {
-                                id: 'CAT_BOOKINGS_EVENTS',
-                                title: '📅 Bookings & Events',
-                                description: 'Salons, Daycares, Tents/DJs, Fridges'
-                            },
-                            {
-                                id: 'CAT_LOGISTICS',
-                                title: '🚚 Logistics & Transport',
-                                description: 'Bakkie Hire, Courier, Laundry Collect'
+                                id: 'BCLASS_EVENT_INFRASTRUCTURE',
+                                title: '📅 Event Infrastructure',
+                                description: 'Multi-day rental matrix, inventory block allocation'
                             }
                         ]
                     }
                 ]
             );
 
-            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, categoryListPayload);
-            return NextResponse.json({ success: true, status: 'TAXONOMY_LIST_SENT' }, { status: 200 });
+            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, classListPayload);
+            return NextResponse.json({ success: true }, { status: 200 });
         }
 
         // =========================================================================
-        // 3. REGISTER BIZ STEP 2: Handle Category Selection & Save to Postgres DB
+        // STEP 2/7: Capture Business Class -> Present Business Type List (3/7)
         // =========================================================================
-        if (session.current_step === 'REGISTER_BIZ_CATEGORY' && selectedButtonId?.startsWith('CAT_')) {
-            const bizName = session.cached_metadata?.pending_business_name || 'My Business';
+        if (session.current_step === 'REG_2_CLASS' && selectedButtonId?.startsWith('BCLASS_')) {
+            const selectedClass = selectedButtonId.replace('BCLASS_', '');
 
-            // Map selected list item to DB business_class_enum
-            let businessClass = 'VOLUME_RETAIL';
-            let categoryLabel = 'Food & Retail';
+            await updateSession(session.id, {
+                currentStep: 'REG_3_TYPE',
+                metadata: { ...session.cached_metadata, pending_business_class: selectedClass }
+            });
 
-            if (selectedButtonId === 'CAT_VOLUME_RETAIL') {
-                businessClass = 'VOLUME_RETAIL';
-                categoryLabel = 'Food & Retail';
-            } else if (selectedButtonId === 'CAT_EMERGENCY_TRADE') {
-                businessClass = 'HIGH_TICKET_LEAD';
-                categoryLabel = 'Emergency / Trade Services';
-            } else if (selectedButtonId === 'CAT_BOOKINGS_EVENTS') {
-                businessClass = 'EVENT_INFRASTRUCTURE';
-                categoryLabel = 'Bookings & Events';
-            } else if (selectedButtonId === 'CAT_LOGISTICS') {
-                businessClass = 'HIGH_TICKET_LEAD';
-                categoryLabel = 'Logistics & Transport';
+            let typeRows = [];
+            if (selectedClass === 'VOLUME_RETAIL') {
+                typeRows = [
+                    { id: 'BTYPE_Kitchens', title: '🍳 Kitchens & Fast Food', description: 'Local meals, combos, daily menus' },
+                    { id: 'BTYPE_Resellers', title: '🛍️ Resellers & Retail', description: 'Clothing, hair products, accessories' },
+                    { id: 'BTYPE_Gas', title: '🔥 LPG Gas Refill', description: 'Gas cylinder delivery & swaps' }
+                ];
+            } else if (selectedClass === 'HIGH_TICKET_LEAD') {
+                typeRows = [
+                    { id: 'BTYPE_Plumbers_Electricians', title: '🛠️ Trade Services', description: 'Plumbing, electrical, repairs' },
+                    { id: 'BTYPE_Roadside_Tyre', title: '🚗 Roadside & Tyre', description: 'Emergency repairs, towing, breakdown' },
+                    { id: 'BTYPE_Bakkie_Hire', title: '🚚 Bakkie & Transport', description: 'Hauling, furniture moves, deliveries' }
+                ];
+            } else {
+                typeRows = [
+                    { id: 'BTYPE_Tents_DJs', title: '🎪 Tents & DJ Sound', description: 'Stretch tents, sound systems, staging' },
+                    { id: 'BTYPE_Fridges_Toilets', title: '🚽 Mobile Fridges/Toilets', description: 'VIP toilets, mobile cooling trailers' },
+                    { id: 'BTYPE_Salons_Daycares', title: '💇 Salons & Bookings', description: 'Appointments, beauty, daycare slots' }
+                ];
             }
 
-            // Insert new record into PostgreSQL merchant_profiles
+            const typeListPayload = buildInteractiveList(
+                "📝 Business Registration (3/7)",
+                `Selected Class: *${selectedClass.replace('_', ' ')}*\n\nChoose the exact business type:`,
+                "Select Type",
+                [
+                    {
+                        title: "Business Types",
+                        rows: typeRows
+                    }
+                ]
+            );
+
+            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, typeListPayload);
+            return NextResponse.json({ success: true }, { status: 200 });
+        }
+
+        // =========================================================================
+        // STEP 3/7: Capture Business Type -> Present Province List (4/7)
+        // =========================================================================
+        if (session.current_step === 'REG_3_TYPE' && selectedButtonId?.startsWith('BTYPE_')) {
+            const selectedType = userMessage;
+
+            await updateSession(session.id, {
+                currentStep: 'REG_4_PROVINCE',
+                metadata: { ...session.cached_metadata, pending_business_type: selectedType }
+            });
+
+            const provinceListPayload = buildInteractiveList(
+                "📝 Business Registration (4/7)",
+                `Business Type set to: *${selectedType}*\n\nSelect your operating Province in South Africa:`,
+                "Select Province",
+                [
+                    {
+                        title: "Provinces",
+                        rows: [
+                            { id: 'PROV_Gauteng', title: 'Gauteng', description: 'Johannesburg, Pretoria, Ekurhuleni' },
+                            { id: 'PROV_WesternCape', title: 'Western Cape', description: 'Cape Town, Winelands, Garden Route' },
+                            { id: 'PROV_KwaZuluNatal', title: 'KwaZulu-Natal', description: 'Durban, Pietermaritzburg' },
+                            { id: 'PROV_EasternCape', title: 'Eastern Cape', description: 'Gqeberha, East London' },
+                            { id: 'PROV_FreeState', title: 'Free State', description: 'Bloemfontein, Welkom' },
+                            { id: 'PROV_Limpopo', title: 'Limpopo', description: 'Polokwane, Tzaneen' },
+                            { id: 'PROV_Mpumalanga', title: 'Mpumalanga', description: 'Mbombela, Witbank' },
+                            { id: 'PROV_NorthWest', title: 'North West', description: 'Rustenburg, Mahikeng' },
+                            { id: 'PROV_NorthernCape', title: 'Northern Cape', description: 'Kimberley, Upington' }
+                        ]
+                    }
+                ]
+            );
+
+            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, provinceListPayload);
+            return NextResponse.json({ success: true }, { status: 200 });
+        }
+
+        // =========================================================================
+        // STEP 4/7: Capture Province -> Prompt for City (5/7)
+        // =========================================================================
+        if (session.current_step === 'REG_4_PROVINCE' && selectedButtonId?.startsWith('PROV_')) {
+            const selectedProvince = userMessage;
+
+            await updateSession(session.id, {
+                currentStep: 'REG_5_CITY',
+                metadata: { ...session.cached_metadata, pending_province: selectedProvince }
+            });
+
+            await sendMetaWhatsappMessage(
+                businessPhoneNumberId,
+                cleanPhoneNumber,
+                `📝 *Business Registration (5/7)*\n\n` +
+                `Province set to: *${selectedProvince}*\n\n` +
+                `What *City / Municipality* do you operate in? (e.g. "Johannesburg", "Pretoria", or "Cape Town")`
+            );
+
+            return NextResponse.json({ success: true }, { status: 200 });
+        }
+
+        // =========================================================================
+        // STEP 5/7: Capture City -> Prompt for Suburb (6/7)
+        // =========================================================================
+        if (session.current_step === 'REG_5_CITY') {
+            const cityInput = userMessage.trim();
+
+            if (!cityInput) {
+                await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, `⚠️ Please type a valid city name.`);
+                return NextResponse.json({ success: true }, { status: 200 });
+            }
+
+            await updateSession(session.id, {
+                currentStep: 'REG_6_SUBURB',
+                metadata: { ...session.cached_metadata, pending_city: cityInput }
+            });
+
+            await sendMetaWhatsappMessage(
+                businessPhoneNumberId,
+                cleanPhoneNumber,
+                `📝 *Business Registration (6/7)*\n\n` +
+                `City set to: *${cityInput}*\n\n` +
+                `What *Suburb or Township* is your business based in? (e.g. "Soweto", "Sandton", or "Khayelitsha")`
+            );
+
+            return NextResponse.json({ success: true }, { status: 200 });
+        }
+
+        // =========================================================================
+        // STEP 6/7: Capture Suburb -> Prompt for Street (7/7)
+        // =========================================================================
+        if (session.current_step === 'REG_6_SUBURB') {
+            const suburbInput = userMessage.trim();
+
+            if (!suburbInput) {
+                await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, `⚠️ Please type a valid suburb or township.`);
+                return NextResponse.json({ success: true }, { status: 200 });
+            }
+
+            await updateSession(session.id, {
+                currentStep: 'REG_7_STREET',
+                metadata: { ...session.cached_metadata, pending_suburb: suburbInput }
+            });
+
+            await sendMetaWhatsappMessage(
+                businessPhoneNumberId,
+                cleanPhoneNumber,
+                `📝 *Business Registration (7/7)*\n\n` +
+                `Suburb set to: *${suburbInput}*\n\n` +
+                `Finally, type your *Street Name and House/Stand Number* (e.g. "1234 Vilakazi Street").`
+            );
+
+            return NextResponse.json({ success: true }, { status: 200 });
+        }
+
+        // =========================================================================
+        // STEP 7/7: Capture Street -> Insert Full Structured Details & Save Record
+        // =========================================================================
+        if (session.current_step === 'REG_7_STREET') {
+            const streetInput = userMessage.trim();
+
+            if (!streetInput) {
+                await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, `⚠️ Please type a valid street address.`);
+                return NextResponse.json({ success: true }, { status: 200 });
+            }
+
+            const meta = session.cached_metadata || {};
+            const bizName = meta.pending_business_name || 'My Business';
+            const bizClass = meta.pending_business_class || 'VOLUME_RETAIL';
+            const bizType = meta.pending_business_type || 'General';
+            const province = meta.pending_province || 'Gauteng';
+            const city = meta.pending_city || 'Johannesburg';
+            const suburb = meta.pending_suburb || 'Central';
+
+            // Format address strings
+            const combinedAddress = `${streetInput}, ${suburb}, ${city}, ${province}`;
+            const cityRegion = `${province} - ${city}`;
+
             let createdBizId = null;
             if (user.id) {
                 const insertRes = await pool.query(
-                    `INSERT INTO merchant_profiles (user_id, business_name, business_class, is_fica_verified)
-                     VALUES ($1, $2, $3, 'UNSUBMITTED')
+                    `INSERT INTO merchant_profiles (
+                        user_id, 
+                        business_name, 
+                        business_class, 
+                        business_type,
+                        province,
+                        city,
+                        suburb,
+                        street_address,
+                        full_physical_address, 
+                        city_region, 
+                        geographic_coordinates
+                    )
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, ST_SetSRID(ST_MakePoint(28.0473, -26.2041), 4326))
                      RETURNING id`,
-                    [user.id, bizName, businessClass]
+                    [
+                        user.id,
+                        bizName,
+                        bizClass,
+                        bizType,
+                        province,
+                        city,
+                        suburb,
+                        streetInput,
+                        combinedAddress,
+                        cityRegion
+                    ]
                 );
                 createdBizId = insertRes.rows[0]?.id;
             }
@@ -292,30 +481,17 @@ export async function POST(req) {
                 cleanPhoneNumber,
                 `🎉 *Business Registered Successfully!*\n\n` +
                 `🏢 *Name:* ${bizName}\n` +
-                `🏷️ *Category:* ${categoryLabel}\n` +
-                `⚙️ *Class:* \`${businessClass}\`\n\n` +
-                `Type *menu* to access your business portal at any time.`
+                `⚙️ *Class:* \`${bizClass}\`\n` +
+                `🏷️ *Type:* ${bizType}\n` +
+                `📍 *Address:* ${combinedAddress}\n\n` +
+                `Type *menu* to open your dashboard.`
             );
 
-            return NextResponse.json({ success: true, status: 'BIZ_REGISTERED_IN_DB' }, { status: 200 });
+            return NextResponse.json({ success: true, status: 'BIZ_REGISTRATION_COMPLETE' }, { status: 200 });
         }
 
         // =========================================================================
-        // 4. REGISTER BUSINESS BUTTON CLICK
-        // =========================================================================
-        if (selectedButtonId === 'BTN_CREATE_BUSINESS') {
-            await updateSession(session.id, { currentStep: 'REGISTER_BIZ_NAME', activeMode: 'MERCHANT_MODE' });
-
-            await sendMetaWhatsappMessage(
-                businessPhoneNumberId,
-                cleanPhoneNumber,
-                `📝 *Business Registration (1/3)*\n\nPlease type the *official name* of your business (e.g., "Soweto Fast Kasi Bites").\n\n💡 _Type *menu* to cancel._`
-            );
-            return NextResponse.json({ success: true }, { status: 200 });
-        }
-
-        // =========================================================================
-        // 5. RESTORED MAIN MENU HANDLER
+        // MAIN MENU & AI PARSER FALLBACK
         // =========================================================================
         const isExplicitMenuTrigger = ['menu', 'hi', 'hello', 'start', 'reset'].includes(userMessage.toLowerCase()) || selectedButtonId === 'BTN_MAIN_MENU';
 
