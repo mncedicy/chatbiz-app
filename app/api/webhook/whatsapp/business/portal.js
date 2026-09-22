@@ -2,15 +2,20 @@
 import { sendMetaWhatsappMessage, buildInteractiveButtons } from '../metaClient';
 import { updateSession, getUserBusinesses } from '../sessionEngine';
 
-// Helper to convert database business_class codes to simple display names
+// Helper to match exact registration menu titles
 function formatBusinessClass(rawClass) {
     switch (rawClass) {
         case 'VOLUME_RETAIL':
         case 'SHOP':
-            return 'Shop';
+        case 'BCLASS_SHOP':
+            return 'Shop & Quick Orders';
         case 'HIGH_TICKET_LEAD':
-            return 'Service';
+        case 'SERVICE':
+        case 'BCLASS_HIGH_TICKET_LEAD':
+            return 'Service & Bookings';
         case 'EVENT_INFRASTRUCTURE':
+        case 'EVENTS':
+        case 'BCLASS_EVENT_INFRASTRUCTURE':
             return 'Event Rentals';
         default:
             return rawClass ? rawClass.replace('_', ' ') : 'General';
@@ -39,7 +44,7 @@ export async function handleMerchantPortal(params) {
         return;
     }
 
-    // Uses formatBusinessClass to show "Shop" instead of "VOLUME RETAIL"
+    // Displays matching menu labels like "Kasi Bites (Shop & Quick Orders)"
     const businessListText = businesses
         .map((b, i) => `${i + 1}. *${b.business_name}* (${formatBusinessClass(b.business_class)})`)
         .join('\n');
