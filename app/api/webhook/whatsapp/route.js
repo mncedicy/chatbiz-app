@@ -109,7 +109,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // 1. BUSINESS PORTAL CLICK HANDLER
+        // 1. BUSINESS PORTAL CLICK HANDLER (OPTION 2: SINGLE BUBBLE WITH BUTTONS)
         // =========================================================================
         if (selectedButtonId === 'BTN_MERCHANT_PORTAL') {
             await updateSession(session.id, { currentStep: 'BUSINESS_SELECTION', activeMode: 'MERCHANT_MODE' });
@@ -118,7 +118,7 @@ export async function POST(req) {
             const userBusinessCount = businesses.length;
             const MAX_BUSINESSES = 5;
 
-            // Case 0: No registered businesses -> Show buttons directly
+            // Case 0: No registered businesses
             if (userBusinessCount === 0) {
                 const noBizPayload = buildInteractiveButtons(
                     "🏪 Business Portal",
@@ -132,41 +132,25 @@ export async function POST(req) {
                 return NextResponse.json({ success: true }, { status: 200 });
             }
 
-            // Case 1: Has registered businesses -> Send List of Businesses
-            const listRows = businesses.map((biz) => ({
-                id: `BTN_SELECT_BIZ_${biz.id}`,
-                title: biz.business_name.length > 24 ? biz.business_name.substring(0, 21) + '...' : biz.business_name,
-                description: `Category: ${biz.business_class?.replace('_', ' ') || 'General'}`
-            }));
+            // Format business list into text
+            const businessListText = businesses
+                .map((b, i) => `${i + 1}. *${b.business_name}* (${b.business_class?.replace('_', ' ') || 'General'})`)
+                .join('\n');
 
-            const bizListPayload = buildInteractiveList(
-                "🏪 Your Registered Businesses",
-                `You currently have *${userBusinessCount}/${MAX_BUSINESSES}* registered businesses.\n\nWhat would you like to do next?`,
-                "Select Business",
-                [
-                    {
-                        title: "Your Businesses",
-                        rows: listRows
-                    }
-                ]
-            );
-
-            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, bizListPayload);
-
-            // Case 2: Send buttons directly without extra text string
+            // Build action buttons array (max 3 buttons supported by Meta API)
             const actionButtons = [];
             if (userBusinessCount < MAX_BUSINESSES) {
                 actionButtons.push({ id: 'BTN_CREATE_BUSINESS', title: '➕ Register Business' });
             }
             actionButtons.push({ id: 'BTN_MAIN_MENU', title: '⬅️ Main Menu' });
 
-            const actionButtonsPayload = buildInteractiveButtons(
-                undefined,
-                " ", // Minimal space to meet Meta API non-empty body requirement
+            const unifiedPayload = buildInteractiveButtons(
+                "🏪 Your Registered Businesses",
+                `You currently have *${userBusinessCount}/${MAX_BUSINESSES}* registered businesses:\n\n${businessListText}`,
                 actionButtons
             );
 
-            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, actionButtonsPayload);
+            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, unifiedPayload);
             return NextResponse.json({ success: true }, { status: 200 });
         }
 
