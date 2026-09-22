@@ -153,7 +153,7 @@ export async function POST(req) {
 
             await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, bizListPayload);
 
-            // Case 2: Send buttons directly underneath using a blank space body text
+            // Case 2: Send buttons directly without extra text string
             const actionButtons = [];
             if (userBusinessCount < MAX_BUSINESSES) {
                 actionButtons.push({ id: 'BTN_CREATE_BUSINESS', title: '➕ Register Business' });
@@ -161,8 +161,8 @@ export async function POST(req) {
             actionButtons.push({ id: 'BTN_MAIN_MENU', title: '⬅️ Main Menu' });
 
             const actionButtonsPayload = buildInteractiveButtons(
-                undefined, // No header
-                " ",       // Minimal whitespace body required by Meta API
+                undefined,
+                " ", // Minimal space to meet Meta API non-empty body requirement
                 actionButtons
             );
 
