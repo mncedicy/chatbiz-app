@@ -1,11 +1,11 @@
 // app/api/webhook/whatsapp/business/registration/step3_4.js
 import { sendMetaWhatsappMessage, buildInteractiveList } from '../../metaClient';
-import { updateSession } from '@/app/api/webhook/whatsapp/sessionEngine';
+import { updateSession } from '../../sessionEngine';
 
 export async function handleStep3And4(params) {
     const { session, userMessage, selectedButtonId, businessPhoneNumberId, cleanPhoneNumber } = params;
 
-    // STEP 3/8: Capture Business Type -> Present Province List (4/8)
+    // STEP 3/8: Choose Category -> Choose Province (4/8)
     if (session.current_step === 'REG_3_TYPE' && selectedButtonId?.startsWith('BTYPE_')) {
         const selectedType = userMessage;
         await updateSession(session.id, {
@@ -14,8 +14,8 @@ export async function handleStep3And4(params) {
         });
 
         const provinceListPayload = buildInteractiveList(
-            "📝 Business Registration (4/8)",
-            `Business Type set to: *${selectedType}*\n\nSelect your operating Province in South Africa:`,
+            "📝 Register Your Business (4/8)",
+            `Category: *${selectedType}*\n\nWhich province is your business in?`,
             "Select Province",
             [{
                 title: "Provinces",
@@ -36,7 +36,7 @@ export async function handleStep3And4(params) {
         return true;
     }
 
-    // STEP 4/8: Province -> Prompt for City (5/8)
+    // STEP 4/8: Choose City (5/8)
     if (session.current_step === 'REG_4_PROVINCE' && selectedButtonId?.startsWith('PROV_')) {
         await updateSession(session.id, {
             currentStep: 'REG_5_CITY',
@@ -45,7 +45,7 @@ export async function handleStep3And4(params) {
 
         await sendMetaWhatsappMessage(
             businessPhoneNumberId, cleanPhoneNumber,
-            `📝 *Business Registration (5/8)*\n\nProvince set to: *${userMessage}*\n\nWhat *City / Municipality* do you operate in? (e.g. "Johannesburg", "Pretoria", or "Cape Town")`
+            `📝 *Register Your Business (5/8)*\n\nProvince: *${userMessage}*\n\nWhich *City or Town* are you in?\n_(Examples: Johannesburg, Pretoria, Cape Town, Durban)_`
         );
         return true;
     }

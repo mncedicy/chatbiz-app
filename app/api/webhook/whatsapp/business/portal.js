@@ -1,6 +1,6 @@
 // app/api/webhook/whatsapp/business/portal.js
 import { sendMetaWhatsappMessage, buildInteractiveButtons } from '../metaClient';
-import { updateSession, getUserBusinesses } from '@/app/api/webhook/whatsapp/sessionEngine';
+import { updateSession, getUserBusinesses } from '../sessionEngine';
 
 export async function handleMerchantPortal(params) {
     const { session, user, businessPhoneNumberId, cleanPhoneNumber } = params;

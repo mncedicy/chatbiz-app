@@ -4,9 +4,9 @@ import { verifyMetaWebhookSignature } from './utils/auth';
 import { handleMerchantPortal } from './business/portal';
 import { handleRegistrationSteps } from './business/registration';
 import { sendMainMenu } from './navigation/menu';
-import { getOrCreateSession, updateSession } from '@/app/api/webhook/whatsapp/sessionEngine';
 import { sendMetaWhatsappMessage } from './metaClient';
-import { parseUserIntent } from '@/app/api/webhook/whatsapp/aiParser';
+import { getOrCreateSession, updateSession } from './sessionEngine';
+import { parseUserIntent } from './aiParser';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -64,13 +64,13 @@ export async function POST(req) {
 
         const handlerParams = { session, user, userMessage, selectedButtonId, businessPhoneNumberId, cleanPhoneNumber };
 
-        // Global Reset Command
+        // Reset command
         if (userMessage.toLowerCase() === 'menu' || selectedButtonId === 'BTN_MAIN_MENU') {
             await sendMainMenu(handlerParams);
             return NextResponse.json({ success: true }, { status: 200 });
         }
 
-        // Business Portal Handler
+        // Business Portal
         if (selectedButtonId === 'BTN_MERCHANT_PORTAL') {
             await handleMerchantPortal(handlerParams);
             return NextResponse.json({ success: true }, { status: 200 });
@@ -81,18 +81,18 @@ export async function POST(req) {
             await updateSession(session.id, { currentStep: 'REG_1_NAME', activeMode: 'MERCHANT_MODE', metadata: {} });
             await sendMetaWhatsappMessage(
                 businessPhoneNumberId, cleanPhoneNumber,
-                `📝 *Business Registration (1/8)*\n\nPlease type the *official name* of your business (e.g., "Soweto Fast Kasi Bites").\n\n💡 _Type *menu* to cancel._`
+                `📝 *Register Your Business (1/8)*\n\nPlease type the *official name* of your business (e.g. "Soweto Fast Kasi Bites").\n\n💡 _Type *menu* to cancel at any time._`
             );
             return NextResponse.json({ success: true }, { status: 200 });
         }
 
-        // Process Ongoing Registration Steps
+        // Handle Registration Steps
         if (session.current_step?.startsWith('REG_')) {
             await handleRegistrationSteps(handlerParams);
             return NextResponse.json({ success: true }, { status: 200 });
         }
 
-        // Default Navigation & Intent Fallback
+        // Main Menu Fallback
         const isExplicitMenuTrigger = ['hi', 'hello', 'start', 'reset'].includes(userMessage.toLowerCase());
         const aiResult = await parseUserIntent(userMessage);
 

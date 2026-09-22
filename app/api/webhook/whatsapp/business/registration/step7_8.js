@@ -1,16 +1,20 @@
 // app/api/webhook/whatsapp/business/registration/step7_8.js
 import pool from '@/lib/db';
 import { sendMetaWhatsappMessage } from '../../metaClient';
-import { updateSession } from '@/app/api/webhook/whatsapp/sessionEngine';
+import { updateSession } from '../../sessionEngine';
 
 export async function handleStep7And8(params) {
     const { session, userMessage, businessPhoneNumberId, cleanPhoneNumber, user } = params;
 
-    // STEP 7/8: Street -> Prompt for AI Description (8/8)
+    // STEP 7/8: Street Address -> Short Description (8/8)
     if (session.current_step === 'REG_7_STREET') {
         const streetInput = userMessage.trim();
         if (!streetInput) {
-            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, `⚠️ Please type a valid street address.`);
+            await sendMetaWhatsappMessage(
+                businessPhoneNumberId,
+                cleanPhoneNumber,
+                `⚠️ Please type your street name and house number.`
+            );
             return true;
         }
 
@@ -20,17 +24,22 @@ export async function handleStep7And8(params) {
         });
 
         await sendMetaWhatsappMessage(
-            businessPhoneNumberId, cleanPhoneNumber,
-            `📝 *Business Registration (8/8)*\n\n🤖 *Why AI Description Matters*\nWhen local customers search using custom phrases, our AI searches this text to match your business directly!\n\n*Please type a short description of what you offer:*\n_Example: "We sell authentic quarter-loaf kotas, Russian chips, and soft drinks with fast local township delivery."_`
+            businessPhoneNumberId,
+            cleanPhoneNumber,
+            `📝 *Register Your Business (8/8)*\n\n💡 *Help local customers find you!*\nType a short sentence about what you sell or do.\n\n*Example:* _"We sell fresh kotas, chips, and cold drinks with fast local delivery."_`
         );
         return true;
     }
 
-    // STEP 8/8: Capture Description -> Save to DB
+    // STEP 8/8: Save Business & Finish
     if (session.current_step === 'REG_8_DESC') {
         const descInput = userMessage.trim();
         if (!descInput) {
-            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, `⚠️ Please type a short description for your business.`);
+            await sendMetaWhatsappMessage(
+                businessPhoneNumberId,
+                cleanPhoneNumber,
+                `⚠️ Please write a short sentence about what your business offers.`
+            );
             return true;
         }
 
@@ -68,8 +77,9 @@ export async function handleStep7And8(params) {
         });
 
         await sendMetaWhatsappMessage(
-            businessPhoneNumberId, cleanPhoneNumber,
-            `🎉 *Business Registered Successfully!*\n\n🏢 *Name:* ${bizName}\n⚙️ *Class:* \`${bizClass}\`\n🏷️ *Type:* ${bizType}\n📝 *Description:* _"${descInput}"_\n📍 *Address:* ${combinedAddress}\n\nType *menu* to open your dashboard.`
+            businessPhoneNumberId,
+            cleanPhoneNumber,
+            `🎉 *Your business is registered!*\n\n🏢 *Name:* ${bizName}\n🏷️ *Type:* ${bizType}\n📝 *About:* _"${descInput}"_\n📍 *Address:* ${combinedAddress}\n\nType *menu* to open your dashboard.`
         );
         return true;
     }

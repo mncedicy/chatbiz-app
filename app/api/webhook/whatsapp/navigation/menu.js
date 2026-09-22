@@ -1,6 +1,6 @@
 // app/api/webhook/whatsapp/navigation/menu.js
 import { sendMetaWhatsappMessage, buildInteractiveButtons } from '../metaClient';
-import { updateSession } from '@/app/api/webhook/whatsapp/sessionEngine';
+import { updateSession } from '../sessionEngine';
 
 export async function sendMainMenu(params) {
     const { session, user, businessPhoneNumberId, cleanPhoneNumber } = params;
