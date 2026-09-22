@@ -190,7 +190,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // START REGISTRATION: BUTTON CLICK -> STEP 1/7
+        // START REGISTRATION: BUTTON CLICK -> STEP 1/8
         // =========================================================================
         if (selectedButtonId === 'BTN_CREATE_BUSINESS') {
             await updateSession(session.id, { currentStep: 'REG_1_NAME', activeMode: 'MERCHANT_MODE', metadata: {} });
@@ -198,13 +198,13 @@ export async function POST(req) {
             await sendMetaWhatsappMessage(
                 businessPhoneNumberId,
                 cleanPhoneNumber,
-                `📝 *Business Registration (1/7)*\n\nPlease type the *official name* of your business (e.g., "Soweto Fast Kasi Bites").\n\n💡 _Type *menu* to cancel._`
+                `📝 *Business Registration (1/8)*\n\nPlease type the *official name* of your business (e.g., "Soweto Fast Kasi Bites").\n\n💡 _Type *menu* to cancel._`
             );
             return NextResponse.json({ success: true }, { status: 200 });
         }
 
         // =========================================================================
-        // STEP 1/7: Capture Business Name -> Present Business Class (2/7)
+        // STEP 1/8: Capture Business Name -> Present Business Class (2/8)
         // =========================================================================
         if (session.current_step === 'REG_1_NAME') {
             const businessNameInput = userMessage.trim();
@@ -220,7 +220,7 @@ export async function POST(req) {
             });
 
             const classListPayload = buildInteractiveList(
-                "📝 Business Registration (2/7)",
+                "📝 Business Registration (2/8)",
                 `Business Name: *${businessNameInput}*\n\nSelect the primary architectural model for your operations:`,
                 "Select Model",
                 [
@@ -252,7 +252,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // STEP 2/7: Capture Business Class -> Present Business Type List (3/7)
+        // STEP 2/8: Capture Business Class -> Present Business Type List (3/8)
         // =========================================================================
         if (session.current_step === 'REG_2_CLASS' && selectedButtonId?.startsWith('BCLASS_')) {
             const selectedClass = selectedButtonId.replace('BCLASS_', '');
@@ -284,7 +284,7 @@ export async function POST(req) {
             }
 
             const typeListPayload = buildInteractiveList(
-                "📝 Business Registration (3/7)",
+                "📝 Business Registration (3/8)",
                 `Selected Class: *${selectedClass.replace('_', ' ')}*\n\nChoose the exact business type:`,
                 "Select Type",
                 [
@@ -300,7 +300,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // STEP 3/7: Capture Business Type -> Present Province List (4/7)
+        // STEP 3/8: Capture Business Type -> Present Province List (4/8)
         // =========================================================================
         if (session.current_step === 'REG_3_TYPE' && selectedButtonId?.startsWith('BTYPE_')) {
             const selectedType = userMessage;
@@ -311,7 +311,7 @@ export async function POST(req) {
             });
 
             const provinceListPayload = buildInteractiveList(
-                "📝 Business Registration (4/7)",
+                "📝 Business Registration (4/8)",
                 `Business Type set to: *${selectedType}*\n\nSelect your operating Province in South Africa:`,
                 "Select Province",
                 [
@@ -337,7 +337,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // STEP 4/7: Capture Province -> Prompt for City (5/7)
+        // STEP 4/8: Capture Province -> Prompt for City (5/8)
         // =========================================================================
         if (session.current_step === 'REG_4_PROVINCE' && selectedButtonId?.startsWith('PROV_')) {
             const selectedProvince = userMessage;
@@ -350,7 +350,7 @@ export async function POST(req) {
             await sendMetaWhatsappMessage(
                 businessPhoneNumberId,
                 cleanPhoneNumber,
-                `📝 *Business Registration (5/7)*\n\n` +
+                `📝 *Business Registration (5/8)*\n\n` +
                 `Province set to: *${selectedProvince}*\n\n` +
                 `What *City / Municipality* do you operate in? (e.g. "Johannesburg", "Pretoria", or "Cape Town")`
             );
@@ -359,7 +359,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // STEP 5/7: Capture City -> Prompt for Suburb (6/7)
+        // STEP 5/8: Capture City -> Prompt for Suburb (6/8)
         // =========================================================================
         if (session.current_step === 'REG_5_CITY') {
             const cityInput = userMessage.trim();
@@ -377,7 +377,7 @@ export async function POST(req) {
             await sendMetaWhatsappMessage(
                 businessPhoneNumberId,
                 cleanPhoneNumber,
-                `📝 *Business Registration (6/7)*\n\n` +
+                `📝 *Business Registration (6/8)*\n\n` +
                 `City set to: *${cityInput}*\n\n` +
                 `What *Suburb or Township* is your business based in? (e.g. "Soweto", "Sandton", or "Khayelitsha")`
             );
@@ -386,7 +386,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // STEP 6/7: Capture Suburb -> Prompt for Street (7/7)
+        // STEP 6/8: Capture Suburb -> Prompt for Street (7/8)
         // =========================================================================
         if (session.current_step === 'REG_6_SUBURB') {
             const suburbInput = userMessage.trim();
@@ -404,22 +404,51 @@ export async function POST(req) {
             await sendMetaWhatsappMessage(
                 businessPhoneNumberId,
                 cleanPhoneNumber,
-                `📝 *Business Registration (7/7)*\n\n` +
+                `📝 *Business Registration (7/8)*\n\n` +
                 `Suburb set to: *${suburbInput}*\n\n` +
-                `Finally, type your *Street Name and House/Stand Number* (e.g. "1234 Vilakazi Street").`
+                `Type your *Street Name and House/Stand Number* (e.g. "1234 Vilakazi Street").`
             );
 
             return NextResponse.json({ success: true }, { status: 200 });
         }
 
         // =========================================================================
-        // STEP 7/7: Capture Street -> Insert Full Structured Details & Save Record
+        // STEP 7/8: Capture Street -> Prompt for AI Business Description (8/8)
         // =========================================================================
         if (session.current_step === 'REG_7_STREET') {
             const streetInput = userMessage.trim();
 
             if (!streetInput) {
                 await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, `⚠️ Please type a valid street address.`);
+                return NextResponse.json({ success: true }, { status: 200 });
+            }
+
+            await updateSession(session.id, {
+                currentStep: 'REG_8_DESC',
+                metadata: { ...session.cached_metadata, pending_street: streetInput }
+            });
+
+            await sendMetaWhatsappMessage(
+                businessPhoneNumberId,
+                cleanPhoneNumber,
+                `📝 *Business Registration (8/8)*\n\n` +
+                `🤖 *Why AI Description Matters*\n` +
+                `When local customers search using custom phrases (e.g. *"beef kota with extra cheese"* or *"mobile fridge for hire"*), our AI searches this text to match your business directly!\n\n` +
+                `*Please type a summary of what you offer:*\n` +
+                `_Example: "We sell authentic quarter-loaf kotas, Russian chips, and soft drinks with fast local township delivery."_`
+            );
+
+            return NextResponse.json({ success: true }, { status: 200 });
+        }
+
+        // =========================================================================
+        // STEP 8/8: Capture Description -> Insert Full Structured Details & Save Record
+        // =========================================================================
+        if (session.current_step === 'REG_8_DESC') {
+            const descInput = userMessage.trim();
+
+            if (!descInput) {
+                await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, `⚠️ Please type a short description for your business.`);
                 return NextResponse.json({ success: true }, { status: 200 });
             }
 
@@ -430,9 +459,9 @@ export async function POST(req) {
             const province = meta.pending_province || 'Gauteng';
             const city = meta.pending_city || 'Johannesburg';
             const suburb = meta.pending_suburb || 'Central';
+            const street = meta.pending_street || '';
 
-            // Format address strings
-            const combinedAddress = `${streetInput}, ${suburb}, ${city}, ${province}`;
+            const combinedAddress = `${street}, ${suburb}, ${city}, ${province}`;
             const cityRegion = `${province} - ${city}`;
 
             let createdBizId = null;
@@ -443,6 +472,7 @@ export async function POST(req) {
                         business_name, 
                         business_class, 
                         business_type,
+                        business_desc,
                         province,
                         city,
                         suburb,
@@ -451,17 +481,18 @@ export async function POST(req) {
                         city_region, 
                         geographic_coordinates
                     )
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, ST_SetSRID(ST_MakePoint(28.0473, -26.2041), 4326))
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, ST_SetSRID(ST_MakePoint(28.0473, -26.2041), 4326))
                      RETURNING id`,
                     [
                         user.id,
                         bizName,
                         bizClass,
                         bizType,
+                        descInput,
                         province,
                         city,
                         suburb,
-                        streetInput,
+                        street,
                         combinedAddress,
                         cityRegion
                     ]
@@ -483,6 +514,7 @@ export async function POST(req) {
                 `🏢 *Name:* ${bizName}\n` +
                 `⚙️ *Class:* \`${bizClass}\`\n` +
                 `🏷️ *Type:* ${bizType}\n` +
+                `📝 *Description:* _"${descInput}"_\n` +
                 `📍 *Address:* ${combinedAddress}\n\n` +
                 `Type *menu* to open your dashboard.`
             );
