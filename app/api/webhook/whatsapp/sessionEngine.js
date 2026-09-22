@@ -1,5 +1,6 @@
-// lib/sessionEngine.js
-import pool from './db';
+// app\api\webhook\whatsapp\sessionEngine.js 
+
+import pool from '../../../../lib/db';
 
 const SESSION_TIMEOUT_MINUTES = 30;
 

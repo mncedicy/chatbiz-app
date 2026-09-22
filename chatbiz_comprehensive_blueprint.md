@@ -300,7 +300,99 @@ FREE        | R0.00   | VOLUME_RETAIL        | Allowance: 10 OrdersFREE        |
 
 
 
+🛡️ The FICA Verification Workflow on WhatsAppWhen a business owner registers on your app, they cannot receive customer payments or take jobs until your system verifies their FICA status.[Business Owner on WhatsApp] 
+       │ 
+       ▼
+ 💬 Chooses [Register Business] ──► Selects Category (e.g., Hair & Beauty Reseller)
+       │
+       ▼
+ 📄 🤖 Bot sends FICA Requirement Alert:
+     "To protect customers and comply with SA law, please upload your FICA docs:
+      1. Green ID Book or Smart ID Card (Photo)
+      2. Proof of Address or Tribal Authority Letter (Photo/PDF)" [1, 2]
+       │
+       ▼
+ 📸 Owner takes a clear photo of their ID and drops it straight into the WhatsApp chat.
+ 📸 Owner takes a clear photo of their proof of residence and drops it into the chat.
+       │
+       ▼
+ ⚙️ Your Backend processes the media files ──► Saves them securely to AWS S3/Cloud Storage.
+ 🔏 Status set to: 'PENDING_VERIFICATION' (Merchant is locked out of receiving customer money).
+       │
+       ▼
+ 🕵️‍♂️ (Admin Review or Automated Check verifies docs) ──► Switch status to 'APPROVED'
+ 📲 Bot alerts owner: "Verification successful! 🎉 Your business is live and can 
 
+
+
+
+🔄 2. The WhatsApp Booking & Logistics WorkflowHere is how your WhatsApp app handles an infrastructure request, ensuring transport costs (which are massive for heavy items like mobile toilets or fridges) are accurately factored in:[Customer on WhatsApp] 
+       │ 
+       ▼
+ 💬 Chooses [Event Rentals] ──► Selects Date: [Fri 16 Oct - Mon 19 Oct]
+       │
+       ▼
+ 📋 Chooses Items to Bundle:
+     ☑️ [1. 50-Seater Stretch Tent]
+     ☑️ [2. Mobile VIP Toilet]
+     ☑️ [3. Sound System + Live DJ]
+       │
+       ▼
+ 📍 Drops Location Pin ──► Backend finds closest FICA-verified Event Merchant with available stock
+       │
+       ▼
+ 🚛 Transport Calculation: System checks weight/bulk, calculates distance from merchant warehouse, 
+    and automatically adds a Heavy Freight Delivery/Collection Fee.
+       │
+       ▼
+ 💳 Displays Total Quote ──► Customer pays deposit via Capitec Pay ──► Calendar 
+
+
+
+
+
+
+ 👥 1. The Dynamic "Role-Switching" Menu LayoutWhen a user messages your WhatsApp bot, the system checks their phone number against the database. If they are registered as both a customer and a business subscriber, the bot always gives them a quick way to switch context.🤖 [App Bot]: Hello Thabo! Welcome back. What would you like to do today?
+
+🔘 Button 1: [ 🛒 Shop / Hire Service ] -> (Switches to Customer Mode)
+🔘 Button 2: [ 💼 My Businesses ] -------> (Switches to Merchant Mode)
+If they click [ 🛒 Shop / Hire Service ]:The bot shifts into standard customer mode. Thabo can look for Inhoko, hire a plumber, or book an event tent.If they click [ 💼 My Businesses ]:The bot lists their registered businesses in an interactive list message:🤖 Select which business you want to manage:
+1. 🚛 Thabo's 1-Ton Bakkie Hire (Premium 1 - 14 tokens left)
+2. ✂️ Thabo's Barber & Fade (Free Tier - 0 tokens left)
+3. ➕ [ Register a New Business ]
+Once he taps a specific business, the bot enters management mode for that specific entity so he can update menus, accept job requests, or check token status.🗄️ 2. The Multi-Business Database Relationship ModelTo make this possible behind the scenes, you must decouple the User Account Profile from the Business Profiles. Instead of making them one table, you split them into a "One-to-Many" relationship:                  ┌─────────────────────────────────────────┐
+                  │          CORE USER PROFILE TABLE        │
+                  │   - id (Primary Key)                    │
+                  │   - phone_number (Unique Key) e.g. 082  │
+                  └────────────────────┬────────────────────┘
+                                       │
+                    ┌──────────────────┴──────────────────┐
+                    ▼ (Can own multiple rows)              ▼
+┌───────────────────────────────────────┐   ┌───────────────────────────────────────┐
+│        BUSINESS PROFILE ROW 1         │   │        BUSINESS PROFILE ROW 2         │
+│ - id                                  │   │ - id                                  │
+│ - user_id (Links to Core Profile)     │   │ - user_id (Links to Core Profile)     │
+│ - business_name: "Thabo's Bakkie"     │   │ - business_name: "Thabo's Barber"     │
+│ - business_class: HIGH_TICKET_LEAD    │   │ - business_class: HIGH_TICKET_LEAD    │
+└──────────────────┬────────────────────┘   └──────────────────┬────────────────────┘
+                   │                                           │
+                   ▼ (Each business has its own billing row)    ▼
+┌───────────────────────────────────────┐   ┌───────────────────────────────────────┐
+│        TOKEN SUBSCRIPTION ROW 1       │   │        TOKEN SUBSCRIPTION ROW 2       │
+│ - business_id                         │   │ - business_id                         │
+│ - tier: PREMIUM_1 (R50 Paystack link) │   │ - tier: FREE (R0)                     │
+│ - tokens_remaining: 14                │   │ - tokens_remaining: 0                 │
+└───────────────────────────────────────┘   └───────────────────────────────────────┘
+⚙️ 3. How the WhatsApp Webhook Remembers the User's StateSince a WhatsApp chat is just a continuous stream of text and buttons, the app needs to remember what "mode" the user is currently in. You handle this using a lightweight Session State Layer in your system memory.The Entry Check: Thabo sends a message. The app notes his phone number.The Active Context Check: The app checks his active state session.If his session status is marked as CUSTOMER_MODE, incoming keywords like "Plumber" search the global database for nearby plumbers.If his session status is marked as MERCHANT_MODE_BUSINESS_1, incoming messages or button clicks (like [ Accept Job ]) apply directly to his Bakkie business ledger.Timeout Protection: If Thabo doesn't type anything for 30 minutes while in Merchant Mode, the session automatically resets. The next time he texts the bot, it greets him with the main menu to choose between Shopping or Managing his businesses again, preventing accidental interactions.💳 4. Independent Paystack Billing ProfilesBecause each business operates on a different token limit and pricing tier, Paystack invoices must be tied directly to the Business Profile ID, not the core user phone number.If Thabo wants to upgrade his Bakkie business to Premium 2, the unique Paystack link generated by your web portal handles payment authorization specifically for that business profile. He can comfortably pay R100 for his Bakkie business while leaving his Barber shop on the Free Tier, receiving completely distinct automated renewal reminders for each via WhatsApp.This approach gives your platform immense scalability—a single community leader could theoretically onboard and manage 3 or 4 local micro-ventures from one WhatsApp number.
+
+
+
+
+
+                       ┌──► 🍗 Food & Retail (Kitchens, Resellers, Gas)
+                            ├──► 🛠️ Emergency / Trade Services (Plumbers, Roadside Tyre)
+[ YOUR WHATSAPP ENGINE ] ───┼──► 📅 Bookings & Events (Salons, Daycares, Tents/DJs)
+                            └──► 🚚 Logistics (Bakkie Hire, Courier Logistics, Laundry Collect)
 
 
 

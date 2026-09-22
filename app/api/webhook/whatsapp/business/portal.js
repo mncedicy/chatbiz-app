@@ -1,5 +1,6 @@
+// app/api/webhook/whatsapp/business/portal.js
 import { sendMetaWhatsappMessage, buildInteractiveButtons } from '../metaClient';
-import { updateSession, getUserBusinesses } from '@/lib/sessionEngine';
+import { updateSession, getUserBusinesses } from '@/app/api/webhook/whatsapp/sessionEngine';
 
 export async function handleMerchantPortal(params) {
     const { session, user, businessPhoneNumberId, cleanPhoneNumber } = params;
@@ -10,7 +11,6 @@ export async function handleMerchantPortal(params) {
     const userBusinessCount = businesses.length;
     const MAX_BUSINESSES = 5;
 
-    // Case 0: No registered businesses
     if (userBusinessCount === 0) {
         const noBizPayload = buildInteractiveButtons(
             "🏪 Business Portal",
@@ -24,7 +24,6 @@ export async function handleMerchantPortal(params) {
         return;
     }
 
-    // Format registered business list inside message body
     const businessListText = businesses
         .map((b, i) => `${i + 1}. *${b.business_name}* (${b.business_class?.replace('_', ' ') || 'General'})`)
         .join('\n');

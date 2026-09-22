@@ -1,3 +1,4 @@
+// app/api/webhook/whatsapp/utils/auth.js
 import crypto from 'crypto';
 
 const APP_SECRET = process.env.WHATSAPP_APP_SECRET;

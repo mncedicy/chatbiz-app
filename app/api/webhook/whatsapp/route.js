@@ -4,9 +4,9 @@ import { verifyMetaWebhookSignature } from './utils/auth';
 import { handleMerchantPortal } from './business/portal';
 import { handleRegistrationSteps } from './business/registration';
 import { sendMainMenu } from './navigation/menu';
-import { getOrCreateSession, updateSession } from '@/lib/sessionEngine';
+import { getOrCreateSession, updateSession } from '@/app/api/webhook/whatsapp/sessionEngine';
 import { sendMetaWhatsappMessage } from './metaClient';
-import { parseUserIntent } from '@/lib/aiParser';
+import { parseUserIntent } from '@/app/api/webhook/whatsapp/aiParser';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
