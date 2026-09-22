@@ -14,7 +14,6 @@ export async function sendMetaWhatsappMessage(businessPhoneNumberId, recipientPh
 
     const cleanToken = token.trim();
 
-    // Wraps text automatically or transmits raw interactive button payload
     const bodyPayload = typeof payloadData === 'string'
         ? {
             messaging_product: 'whatsapp',
@@ -47,7 +46,7 @@ export async function sendMetaWhatsappMessage(businessPhoneNumberId, recipientPh
             return false;
         }
 
-        console.log(`🚀 [Egress Engine]: Message safely transmitted via v22.0 to user: ${recipientPhone}`);
+        console.log(`🚀 [Egress Engine]: Message transmitted via v22.0 to: ${recipientPhone}`);
         return true;
     } catch (error) {
         console.error('❌ [Egress Fatal Exception]: Failed to connect to Meta Graph API:', error);
@@ -56,7 +55,7 @@ export async function sendMetaWhatsappMessage(businessPhoneNumberId, recipientPh
 }
 
 /**
- * Builder utility for interactive Meta button replies
+ * Builder utility for interactive Meta button replies (Max 3 buttons)
  */
 export function buildInteractiveButtons(headerText, bodyText, buttons) {
     return {
@@ -70,6 +69,24 @@ export function buildInteractiveButtons(headerText, bodyText, buttons) {
                     type: 'reply',
                     reply: { id: btn.id, title: btn.title }
                 }))
+            }
+        }
+    };
+}
+
+/**
+ * Builder utility for interactive Meta section lists (For > 3 options)
+ */
+export function buildInteractiveList(headerText, bodyText, buttonLabel, sections) {
+    return {
+        type: 'interactive',
+        interactive: {
+            type: 'list',
+            header: { type: 'text', text: headerText },
+            body: { text: bodyText },
+            action: {
+                button: buttonLabel,
+                sections: sections
             }
         }
     };
