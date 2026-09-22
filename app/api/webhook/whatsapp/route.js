@@ -1,8 +1,8 @@
 // app/api/webhook/whatsapp/route.js
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { sendMetaWhatsappMessage, buildInteractiveButtons, buildInteractiveList } from './metaClient';
-import { getOrCreateSession, updateSession, getUserBusinesses } from '@/lib/sessionEngine';
+import { sendMetaWhatsappMessage, buildInteractiveButtons } from './metaClient';
+import { getOrCreateSession, updateSession } from '@/lib/sessionEngine';
 import { parseUserIntent } from '@/lib/aiParser';
 
 export const dynamic = 'force-dynamic';
@@ -13,10 +13,7 @@ const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "ChatBiz_Secret_Secure
 const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
 
 function verifyMetaWebhookSignature(rawBody, signatureHeader) {
-    if (!APP_SECRET) {
-        console.warn('⚠️ [Security]: WHATSAPP_APP_SECRET missing. Bypassing check.');
-        return true;
-    }
+    if (!APP_SECRET) return true;
     if (!signatureHeader) return false;
 
     const signatureHash = signatureHeader.split('=')[1];
@@ -36,13 +33,12 @@ export async function GET(req) {
         const challenge = searchParams.get('hub.challenge');
 
         if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-            console.log('✅ [ChatBiz Webhook]: Handshake verification successful.');
             return new Response(String(challenge), {
                 status: 200,
                 headers: { 'Content-Type': 'text/plain; charset=utf-8' },
             });
         }
-        return new Response('Forbidden Verification Token Mismatch', { status: 403 });
+        return new Response('Forbidden', { status: 403 });
     } catch (err) {
         return new Response(err.message, { status: 500 });
     }
@@ -75,7 +71,7 @@ export async function POST(req) {
         const session = sessionResult?.session || { active_mode: 'CUSTOMER_MODE', current_step: 'MAIN_MENU' };
         const user = sessionResult?.user || { first_name: 'WhatsApp', last_name: 'User', title: null };
 
-        // 2. Extract Message Input
+        // 2. Extract Message Content
         let userMessage = '';
         let selectedButtonId = null;
 
@@ -86,175 +82,101 @@ export async function POST(req) {
             userMessage = messageNode.interactive?.button_reply?.title || messageNode.interactive?.list_reply?.title || '';
         }
 
-        const firstNameDisplay = user.first_name || 'User';
-        console.log(`\n📬 [Ingress] User: ${cleanPhoneNumber} (${firstNameDisplay}) | Step: ${session.current_step} | Input: "${userMessage}"`);
+        console.log(`📬 [Ingress] Step: ${session.current_step} | Input: "${userMessage}"`);
 
-        // 3. Handle Business Portal Selection Trigger
-        if (selectedButtonId === 'BTN_MERCHANT_PORTAL' || userMessage.toLowerCase() === 'business portal') {
-            await updateSession(session.id, { currentStep: 'BUSINESS_SELECTION', activeMode: 'MERCHANT_MODE' });
-
-            const businesses = await getUserBusinesses(user.id);
-            const userBusinessCount = businesses.length;
-            const MAX_BUSINESSES = 5;
-
-            // Scenario A: User has 0 businesses registered
-            if (userBusinessCount === 0) {
-                const noBizPayload = buildInteractiveButtons(
-                    "🏪 Business Portal",
-                    `Hello ${firstNameDisplay}, you don't have any registered businesses yet.\n\nYou can register up to 5 businesses on ChatBiz!`,
-                    [
-                        { id: 'BTN_CREATE_BUSINESS', title: '➕ Register Business' },
-                        { id: 'BTN_MAIN_MENU', title: '⬅️ Main Menu' }
-                    ]
-                );
-                await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, noBizPayload);
-                return NextResponse.json({ success: true }, { status: 200 });
-            }
-
-            // Scenario B: User has 1 or 2 businesses (Use standard buttons <= 3 total actions)
-            if (userBusinessCount <= 2) {
-                const buttons = businesses.map((biz) => ({
-                    id: `BTN_SELECT_BIZ_${biz.id}`,
-                    title: biz.business_name.length > 20 ? biz.business_name.substring(0, 17) + '...' : biz.business_name
-                }));
-
-                if (userBusinessCount < MAX_BUSINESSES) {
-                    buttons.push({ id: 'BTN_CREATE_BUSINESS', title: '➕ Register Business' });
-                }
-
-                buttons.push({ id: 'BTN_MAIN_MENU', title: '⬅️ Main Menu' });
-
-                const bizMenuPayload = buildInteractiveButtons(
-                    "🏪 Business Portal",
-                    `Welcome ${firstNameDisplay}!\nSelect a business to manage (${userBusinessCount}/${MAX_BUSINESSES}):`,
-                    buttons
-                );
-
-                await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, bizMenuPayload);
-                return NextResponse.json({ success: true }, { status: 200 });
-            }
-
-            // Scenario C: User has 3 to 5 businesses (Use Interactive Section List)
-            const listRows = businesses.map((biz) => ({
-                id: `BTN_SELECT_BIZ_${biz.id}`,
-                title: biz.business_name,
-                description: `Category: ${biz.business_class.replace('_', ' ')}`
-            }));
-
-            if (userBusinessCount < MAX_BUSINESSES) {
-                listRows.push({
-                    id: 'BTN_CREATE_BUSINESS',
-                    title: '➕ Register New Business',
-                    description: `You have used ${userBusinessCount}/5 slots`
-                });
-            }
-
-            listRows.push({
-                id: 'BTN_MAIN_MENU',
-                title: '⬅️ Main Menu',
-                description: 'Return to customer portal'
-            });
-
-            const bizListPayload = buildInteractiveList(
-                "🏪 Business Portal",
-                `Welcome ${firstNameDisplay}!\nYou have ${userBusinessCount}/${MAX_BUSINESSES} registered businesses. Select an option below:`,
-                "Select Business",
-                [
-                    {
-                        title: "Your Businesses",
-                        rows: listRows
-                    }
-                ]
-            );
-
-            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, bizListPayload);
-            return NextResponse.json({ success: true }, { status: 200 });
-        }
-
-        // 4. Handle Specific Business Selection
-        if (selectedButtonId && selectedButtonId.startsWith('BTN_SELECT_BIZ_')) {
-            const selectedBizId = selectedButtonId.replace('BTN_SELECT_BIZ_', '');
-
-            await updateSession(session.id, {
-                currentStep: 'MERCHANT_DASHBOARD',
-                activeMode: 'MERCHANT_MODE',
-                activeBusinessId: parseInt(selectedBizId, 10)
-            });
-
-            const dashboardMenu = buildInteractiveButtons(
-                "🏪 Business Dashboard",
-                `Business ID #${selectedBizId} Active.\n\nWhat would you like to manage?`,
-                [
-                    { id: 'BTN_MY_ORDERS', title: '📋 My Orders' },
-                    { id: 'BTN_WALLET', title: '🪙 Token Wallet' },
-                    { id: 'BTN_MERCHANT_PORTAL', title: '⬅️ Switch Business' }
-                ]
-            );
-
-            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, dashboardMenu);
-            return NextResponse.json({ success: true }, { status: 200 });
-        }
-
-        // 5. Handle "➕ Register Business" Button
-        if (selectedButtonId === 'BTN_CREATE_BUSINESS') {
-            const businesses = await getUserBusinesses(user.id);
-
-            if (businesses.length >= 5) {
-                await sendMetaWhatsappMessage(
-                    businessPhoneNumberId,
-                    cleanPhoneNumber,
-                    `🚫 *Limit Reached*\n\nYou have reached the maximum limit of 5 registered businesses.`
-                );
-                return NextResponse.json({ success: true }, { status: 200 });
-            }
-
-            await updateSession(session.id, { currentStep: 'REGISTER_BIZ_NAME', activeMode: 'MERCHANT_MODE' });
-
-            await sendMetaWhatsappMessage(
-                businessPhoneNumberId,
-                cleanPhoneNumber,
-                `📝 *Business Registration (1/3)*\n\nPlease type the *official name* of your business (e.g., "Soweto Fast Kasi Bites").\n\n💡 _Type *menu* to cancel._`
-            );
-            return NextResponse.json({ success: true }, { status: 200 });
-        }
-
-        // 6. Handle Main Menu Actions & Explicit Keywords
-        const isMenuTrigger = ['menu', 'hi', 'hello', 'start', 'reset', 'main menu'].includes(userMessage.toLowerCase()) || selectedButtonId === 'BTN_MAIN_MENU' || selectedButtonId === 'BTN_SWITCH_CUSTOMER';
-
-        const aiResult = await parseUserIntent(userMessage);
-
-        if (session.current_step === 'MAIN_MENU' || aiResult.intent === 'NAVIGATE_MENU' || isMenuTrigger) {
-            if (session.id && session.current_step !== 'MAIN_MENU') {
-                await updateSession(session.id, { currentStep: 'MAIN_MENU', activeMode: 'CUSTOMER_MODE', activeBusinessId: null });
-            }
-
-            const isRegisteredUser = user.first_name && user.first_name !== 'WhatsApp';
-            const userTitle = user.title ? `${user.title} ` : '';
-            const greetingName = isRegisteredUser ? `${userTitle}${user.first_name}` : 'Friend';
-
-            const headerText = `Welcome to ChatBiz 🇿🇦`;
-            const bodyText = `Sawubona / Hello ${greetingName}!\n\n` +
-                `📱 *Account:* +${cleanPhoneNumber}\n` +
-                `⚙️ *Mode:* ${session.active_mode === 'MERCHANT_MODE' ? 'Merchant 🏪' : 'Customer 🛒'}\n\n` +
-                `How can we help you today? Choose an option below:`;
-
+        // Global Cancel Command
+        if (userMessage.toLowerCase() === 'menu' || selectedButtonId === 'BTN_MAIN_MENU') {
+            await updateSession(session.id, { currentStep: 'MAIN_MENU', activeMode: 'CUSTOMER_MODE' });
             const mainMenu = buildInteractiveButtons(
-                headerText,
-                bodyText,
+                `Welcome to ChatBiz 🇿🇦`,
+                `How can we help you today?`,
                 [
                     { id: 'BTN_BUY_FIND', title: '🔍 Find Services' },
                     { id: 'BTN_MERCHANT_PORTAL', title: '🏪 Business Portal' }
                 ]
             );
-
             await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, mainMenu);
-            return NextResponse.json({ success: true, status: 'MAIN_MENU_SENT' }, { status: 200 });
+            return NextResponse.json({ success: true }, { status: 200 });
+        }
+
+        // =========================================================================
+        // STEP HANDLER 1: Capture Business Name (Fixes "no response" for "stims")
+        // =========================================================================
+        if (session.current_step === 'REGISTER_BIZ_NAME') {
+            const businessNameInput = userMessage.trim();
+
+            if (!businessNameInput) {
+                await sendMetaWhatsappMessage(
+                    businessPhoneNumberId,
+                    cleanPhoneNumber,
+                    `⚠️ Please type a valid business name.`
+                );
+                return NextResponse.json({ success: true }, { status: 200 });
+            }
+
+            // Save business name and update step to Category (2/3)
+            await updateSession(session.id, {
+                currentStep: 'REGISTER_BIZ_CATEGORY',
+                metadata: { ...session.cached_metadata, pending_business_name: businessNameInput }
+            });
+
+            await sendMetaWhatsappMessage(
+                businessPhoneNumberId,
+                cleanPhoneNumber,
+                `✅ Business Name set to: *${businessNameInput}*\n\n` +
+                `📝 *Business Registration (2/3)*\n\n` +
+                `What service or product does your business provide? (e.g., "Fast Food & Catering" or "Plumbing Services")`
+            );
+
+            return NextResponse.json({ success: true, status: 'BIZ_NAME_SAVED' }, { status: 200 });
+        }
+
+        // =========================================================================
+        // STEP HANDLER 2: Capture Business Category
+        // =========================================================================
+        if (session.current_step === 'REGISTER_BIZ_CATEGORY') {
+            const categoryInput = userMessage.trim();
+            const bizName = session.cached_metadata?.pending_business_name || 'My Business';
+
+            await updateSession(session.id, {
+                currentStep: 'MAIN_MENU',
+                metadata: { ...session.cached_metadata, pending_category: categoryInput }
+            });
+
+            await sendMetaWhatsappMessage(
+                businessPhoneNumberId,
+                cleanPhoneNumber,
+                `🎉 *Business Registered Successfully!*\n\n` +
+                `🏢 *Name:* ${bizName}\n` +
+                `🏷️ *Category:* ${categoryInput}\n\n` +
+                `Type *menu* to access your dashboard.`
+            );
+
+            return NextResponse.json({ success: true, status: 'BIZ_REGISTRATION_COMPLETE' }, { status: 200 });
+        }
+
+        // =========================================================================
+        // Fallback Intent Parser for general browsing
+        // =========================================================================
+        const aiResult = await parseUserIntent(userMessage);
+
+        if (session.current_step === 'MAIN_MENU' || aiResult.intent === 'NAVIGATE_MENU') {
+            const mainMenu = buildInteractiveButtons(
+                `Welcome to ChatBiz 🇿🇦`,
+                `How can we help you today?`,
+                [
+                    { id: 'BTN_BUY_FIND', title: '🔍 Find Services' },
+                    { id: 'BTN_MERCHANT_PORTAL', title: '🏪 Business Portal' }
+                ]
+            );
+            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, mainMenu);
+            return NextResponse.json({ success: true }, { status: 200 });
         }
 
         return NextResponse.json({ success: true, status: 'EVENT_PROCESSED' }, { status: 200 });
 
     } catch (err) {
-        console.error('🚨 ChatBiz Webhook Pipeline Error:', err.message);
-        return NextResponse.json({ error: 'Internal Server Error: ' + err.message }, { status: 500 });
+        console.error('🚨 ChatBiz Webhook Error:', err.message);
+        return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
