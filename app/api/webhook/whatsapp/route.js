@@ -109,7 +109,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // 1. BUSINESS PORTAL CLICK HANDLER (LIST + EXTERNAL ACTION BUTTONS)
+        // 1. BUSINESS PORTAL CLICK HANDLER
         // =========================================================================
         if (selectedButtonId === 'BTN_MERCHANT_PORTAL') {
             await updateSession(session.id, { currentStep: 'BUSINESS_SELECTION', activeMode: 'MERCHANT_MODE' });
@@ -153,7 +153,7 @@ export async function POST(req) {
 
             await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, bizListPayload);
 
-            // Case 2: Send Quick Reply Action Buttons separately outside the list
+            // Case 2: Send buttons directly underneath using a blank space body text
             const actionButtons = [];
             if (userBusinessCount < MAX_BUSINESSES) {
                 actionButtons.push({ id: 'BTN_CREATE_BUSINESS', title: '➕ Register Business' });
@@ -161,8 +161,8 @@ export async function POST(req) {
             actionButtons.push({ id: 'BTN_MAIN_MENU', title: '⬅️ Main Menu' });
 
             const actionButtonsPayload = buildInteractiveButtons(
-                "",
-                "Or choose an action below:",
+                undefined, // No header
+                " ",       // Minimal whitespace body required by Meta API
                 actionButtons
             );
 
