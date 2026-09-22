@@ -109,7 +109,7 @@ export async function POST(req) {
         }
 
         // =========================================================================
-        // 1. BUSINESS PORTAL CLICK HANDLER (STRICT 3-BUTTON SAFEGUARD)
+        // 1. BUSINESS PORTAL CLICK HANDLER (LIST + PERSISTENT ACTION BUTTONS)
         // =========================================================================
         if (selectedButtonId === 'BTN_MERCHANT_PORTAL') {
             await updateSession(session.id, { currentStep: 'BUSINESS_SELECTION', activeMode: 'MERCHANT_MODE' });
@@ -118,7 +118,7 @@ export async function POST(req) {
             const userBusinessCount = businesses.length;
             const MAX_BUSINESSES = 5;
 
-            // Option 1: 0 Businesses
+            // Case 0: No registered businesses -> Show buttons directly
             if (userBusinessCount === 0) {
                 const noBizPayload = buildInteractiveButtons(
                     "🏪 Business Portal",
@@ -132,57 +132,16 @@ export async function POST(req) {
                 return NextResponse.json({ success: true }, { status: 200 });
             }
 
-            // Option 2: 1 Business (Fits into 3 Quick Reply Buttons: [Biz 1, Register New, Main Menu])
-            if (userBusinessCount === 1) {
-                const buttons = [
-                    {
-                        id: `BTN_SELECT_BIZ_${businesses[0].id}`,
-                        title: businesses[0].business_name.length > 20
-                            ? businesses[0].business_name.substring(0, 17) + '...'
-                            : businesses[0].business_name
-                    }
-                ];
-
-                if (userBusinessCount < MAX_BUSINESSES) {
-                    buttons.push({ id: 'BTN_CREATE_BUSINESS', title: '➕ Register New' });
-                }
-
-                buttons.push({ id: 'BTN_MAIN_MENU', title: '⬅️ Main Menu' });
-
-                const bizMenuPayload = buildInteractiveButtons(
-                    "🏪 Business Portal",
-                    `Welcome!\nSelect a business to manage (${userBusinessCount}/${MAX_BUSINESSES}):`,
-                    buttons
-                );
-
-                await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, bizMenuPayload);
-                return NextResponse.json({ success: true }, { status: 200 });
-            }
-
-            // Option 3: 2 or more businesses (Always use List Message to prevent >3 button WhatsApp error)
+            // Case 1: Has registered businesses -> First send List of Businesses
             const listRows = businesses.map((biz) => ({
                 id: `BTN_SELECT_BIZ_${biz.id}`,
                 title: biz.business_name.length > 24 ? biz.business_name.substring(0, 21) + '...' : biz.business_name,
                 description: `Category: ${biz.business_class?.replace('_', ' ') || 'General'}`
             }));
 
-            if (userBusinessCount < MAX_BUSINESSES) {
-                listRows.push({
-                    id: 'BTN_CREATE_BUSINESS',
-                    title: '➕ Register New Business',
-                    description: `Slots used: ${userBusinessCount}/${MAX_BUSINESSES}`
-                });
-            }
-
-            listRows.push({
-                id: 'BTN_MAIN_MENU',
-                title: '⬅️ Main Menu',
-                description: 'Return to customer options'
-            });
-
             const bizListPayload = buildInteractiveList(
-                "🏪 Business Portal",
-                `Welcome!\nYou have ${userBusinessCount}/${MAX_BUSINESSES} registered businesses. Select an option below:`,
+                "🏪 Your Registered Businesses",
+                `You currently have *${userBusinessCount}/${MAX_BUSINESSES}* registered businesses.\n\nSelect a business below to manage its profile:`,
                 "Select Business",
                 [
                     {
@@ -193,6 +152,21 @@ export async function POST(req) {
             );
 
             await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, bizListPayload);
+
+            // Case 2: Send persistent Quick Reply Action Buttons immediately after list
+            const actionButtons = [];
+            if (userBusinessCount < MAX_BUSINESSES) {
+                actionButtons.push({ id: 'BTN_CREATE_BUSINESS', title: '➕ Register Business' });
+            }
+            actionButtons.push({ id: 'BTN_MAIN_MENU', title: '⬅️ Main Menu' });
+
+            const actionButtonsPayload = buildInteractiveButtons(
+                "⚙️ Portal Options",
+                `What would you like to do next?`,
+                actionButtons
+            );
+
+            await sendMetaWhatsappMessage(businessPhoneNumberId, cleanPhoneNumber, actionButtonsPayload);
             return NextResponse.json({ success: true }, { status: 200 });
         }
 
