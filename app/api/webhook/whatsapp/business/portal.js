@@ -2,6 +2,21 @@
 import { sendMetaWhatsappMessage, buildInteractiveButtons } from '../metaClient';
 import { updateSession, getUserBusinesses } from '../sessionEngine';
 
+// Helper to convert database business_class codes to simple display names
+function formatBusinessClass(rawClass) {
+    switch (rawClass) {
+        case 'VOLUME_RETAIL':
+        case 'SHOP':
+            return 'Shop';
+        case 'HIGH_TICKET_LEAD':
+            return 'Service';
+        case 'EVENT_INFRASTRUCTURE':
+            return 'Event Rentals';
+        default:
+            return rawClass ? rawClass.replace('_', ' ') : 'General';
+    }
+}
+
 export async function handleMerchantPortal(params) {
     const { session, user, businessPhoneNumberId, cleanPhoneNumber } = params;
 
@@ -24,8 +39,9 @@ export async function handleMerchantPortal(params) {
         return;
     }
 
+    // Uses formatBusinessClass to show "Shop" instead of "VOLUME RETAIL"
     const businessListText = businesses
-        .map((b, i) => `${i + 1}. *${b.business_name}* (${b.business_class?.replace('_', ' ') || 'General'})`)
+        .map((b, i) => `${i + 1}. *${b.business_name}* (${formatBusinessClass(b.business_class)})`)
         .join('\n');
 
     const actionButtons = [];
